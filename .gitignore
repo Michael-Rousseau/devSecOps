@@ -6,6 +6,12 @@
 .env.local
 docker-compose.override.yml
 
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfplan
+
 .DS_Store
 .angular
 
