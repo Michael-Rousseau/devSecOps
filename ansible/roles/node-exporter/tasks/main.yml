@@ -1,18 +1,14 @@
 ---
+- name: Check if Node Exporter is running
+  ansible.builtin.shell: docker ps -q -f name=node-exporter
+  register: ne_running
+  changed_when: false
+
 - name: Run Node Exporter container
-  community.docker.docker_container:
-    name: node-exporter
-    image: prom/node-exporter:latest
-    state: started
-    restart_policy: unless-stopped
-    ports:
-      - "9100:9100"
-    volumes:
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - /:/rootfs:ro
-    command:
-      - "--path.procfs=/host/proc"
-      - "--path.sysfs=/host/sys"
-      - "--path.rootfs=/rootfs"
-      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+  ansible.builtin.shell: |
+    docker run -d --name node-exporter --restart unless-stopped \
+      -p 9100:9100 \
+      -v /proc:/host/proc:ro -v /sys:/host/sys:ro -v /:/rootfs:ro \
+      prom/node-exporter:latest \
+      --path.procfs=/host/proc --path.sysfs=/host/sys --path.rootfs=/rootfs
+  when: ne_running.stdout == ""

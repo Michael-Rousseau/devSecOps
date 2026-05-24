@@ -36,18 +36,23 @@
     owner: ec2-user
     group: ec2-user
     mode: "0644"
+  register: prom_config
+
+- name: Check if Prometheus is running
+  ansible.builtin.shell: docker ps -q -f name=prometheus
+  register: prom_running
+  changed_when: false
+
+- name: Stop Prometheus if config changed
+  ansible.builtin.shell: docker rm -f prometheus
+  when: prom_config.changed and prom_running.stdout != ""
 
 - name: Run Prometheus container
-  community.docker.docker_container:
-    name: prometheus
-    image: prom/prometheus:latest
-    state: started
-    restart_policy: unless-stopped
-    ports:
-      - "9090:9090"
-    volumes:
-      - /opt/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - /opt/monitoring/prometheus/data:/prometheus
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.retention.time=7d"
+  ansible.builtin.shell: |
+    docker run -d --name prometheus --restart unless-stopped \
+      --network host \
+      -v /opt/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml \
+      -v /opt/monitoring/prometheus/data:/prometheus \
+      prom/prometheus:latest \
+      --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.retention.time=7d
+  when: prom_config.changed or prom_running.stdout == ""

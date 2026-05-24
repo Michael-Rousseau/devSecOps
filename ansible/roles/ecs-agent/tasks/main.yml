@@ -1,9 +1,4 @@
 ---
-- name: Install ECS agent
-  ansible.builtin.dnf:
-    name: amazon-ecs-init
-    state: present
-
 - name: Configure ECS agent
   ansible.builtin.template:
     src: ecs.config.j2

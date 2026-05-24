@@ -8,16 +8,14 @@
     mode: "0755"
   loop:
     - /opt/monitoring/grafana
-    - /opt/monitoring/grafana/provisioning
     - /opt/monitoring/grafana/provisioning/datasources
     - /opt/monitoring/grafana/provisioning/dashboards
     - /opt/monitoring/grafana/dashboards
     - /opt/monitoring/grafana/data
 
-- name: Set Grafana data directory permissions
+- name: Set Grafana data permissions
   ansible.builtin.file:
     path: /opt/monitoring/grafana/data
-    state: directory
     owner: "472"
     group: "472"
     mode: "0755"
@@ -30,15 +28,8 @@
         - name: Prometheus
           type: prometheus
           access: proxy
-          url: http://prometheus:9090
+          url: http://localhost:9090
           isDefault: true
-          editable: true
-        - name: CloudWatch
-          type: cloudwatch
-          access: proxy
-          jsonData:
-            authType: default
-            defaultRegion: {{ aws_region }}
           editable: true
     dest: /opt/monitoring/grafana/provisioning/datasources/datasources.yml
     owner: ec2-user
@@ -49,9 +40,9 @@
     content: |
       apiVersion: 1
       providers:
-        - name: "default"
+        - name: default
           orgId: 1
-          folder: "DEUS Dashboard"
+          folder: DEUS Dashboard
           type: file
           options:
             path: /var/lib/grafana/dashboards
@@ -61,26 +52,30 @@
 
 - name: Copy dashboard JSON
   ansible.builtin.copy:
-    src: ../../../../monitoring/grafana/dashboards/backend-overview.json
+    src: backend-overview.json
     dest: /opt/monitoring/grafana/dashboards/backend-overview.json
     owner: ec2-user
     mode: "0644"
+  register: grafana_config
+
+- name: Check if Grafana is running
+  ansible.builtin.shell: docker ps -q -f name=grafana
+  register: grafana_running
+  changed_when: false
+
+- name: Stop Grafana if config changed
+  ansible.builtin.shell: docker rm -f grafana
+  when: grafana_config.changed and grafana_running.stdout != ""
 
 - name: Run Grafana container
-  community.docker.docker_container:
-    name: grafana
-    image: grafana/grafana:latest
-    state: started
-    restart_policy: unless-stopped
-    ports:
-      - "3000:3000"
-    env:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: "{{ grafana_admin_password | default('admin') }}"
-      GF_USERS_ALLOW_SIGN_UP: "false"
-    volumes:
-      - /opt/monitoring/grafana/provisioning:/etc/grafana/provisioning
-      - /opt/monitoring/grafana/dashboards:/var/lib/grafana/dashboards
-      - /opt/monitoring/grafana/data:/var/lib/grafana
-    links:
-      - prometheus:prometheus
+  ansible.builtin.shell: |
+    docker run -d --name grafana --restart unless-stopped \
+      -p 3000:3000 \
+      -e GF_SECURITY_ADMIN_USER=admin \
+      -e GF_SECURITY_ADMIN_PASSWORD={{ grafana_admin_password }} \
+      -e GF_USERS_ALLOW_SIGN_UP=false \
+      -v /opt/monitoring/grafana/provisioning:/etc/grafana/provisioning \
+      -v /opt/monitoring/grafana/dashboards:/var/lib/grafana/dashboards \
+      -v /opt/monitoring/grafana/data:/var/lib/grafana \
+      grafana/grafana:latest
+  when: grafana_config.changed or grafana_running.stdout == ""

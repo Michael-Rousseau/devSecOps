@@ -24,9 +24,15 @@
     state: started
     enabled: true
 
+- name: Check if crontab exists
+  ansible.builtin.stat:
+    path: /etc/crontab
+  register: crontab_file
+
 - name: Set restrictive permissions on cron
   ansible.builtin.file:
     path: /etc/crontab
     owner: root
     group: root
     mode: "0600"
+  when: crontab_file.stat.exists
