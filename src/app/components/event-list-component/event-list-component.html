@@ -1,0 +1,69 @@
+<div class="glass-panel">
+  <h3>Recent Earth Events</h3>
+
+  <div class="search-box">
+    <input
+      type="text"
+      placeholder="Filter events..."
+      (input)="filterText.set($any($event.target).value)"
+    />
+  </div>
+
+  <div class="filters">
+    <label>
+      Category:
+      <select (change)="categoryFilter.set($any($event.target).value)">
+        <option value="all">All Categories</option>
+        @for (cat of availableCategories(); track cat) {
+          <option [value]="cat">{{ cat }}</option>
+        }
+      </select>
+    </label>
+
+    <label>
+      Source:
+      <select (change)="sourceFilter.set($any($event.target).value)">
+        <option value="all">All Sources</option>
+        @for (source of availableSources(); track source) {
+          <option [value]="source">{{ source }}</option>
+        }
+      </select>
+    </label>
+
+    <label>
+      Date Range (Fetches new data):
+      <select (change)="onDateChange($event)">
+        <option value="month" selected>Last 30 Days</option>
+        <option value="today">Today</option>
+        <option value="week">Last 7 Days</option>
+        <option value="year">Last Year</option>
+      </select>
+    </label>
+
+    <label>
+      Sort by:
+      <select (change)="sortBy.set($any($event.target).value)">
+        <option value="date-desc">Date (Newest First)</option>
+        <option value="date-asc">Date (Oldest First)</option>
+        <option value="title-asc">Title (A-Z)</option>
+        <option value="title-desc">Title (Z-A)</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="events-list">
+    @for (event of filteredEvents(); track event.id) {
+      <div class="event-card">
+        <div class="event-header">
+          <span class="date">{{ event.geometries[0].date | date: 'dd/MM/yyyy' }}</span>
+          <span class="tag">{{ event.categories[0].title }}</span>
+        </div>
+        <h4>{{ event.title }}</h4>
+        <div class="event-footer">
+          <a [href]="event.sources[0]?.url" target="_blank">View Complete Information</a>
+          <span class="source">{{ event.sources[0]?.id }}</span>
+        </div>
+      </div>
+    }
+  </div>
+</div>

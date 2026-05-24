@@ -1,0 +1,85 @@
+<div class="apod-container">
+  <!-- En-tête avec recherche et filtres -->
+  <header class="apod-header">
+    <h1>La photo du jour - {{ mainApod ? formatDisplayDate(mainApod.date) : '' }}</h1>
+    
+    <div class="search-controls">
+      <input 
+        type="date" 
+        [(ngModel)]="searchDate" 
+        class="search-input"
+      />
+      <button (click)="searchByDate()">Rechercher</button>
+    </div>
+  </header>
+
+  <!-- print error if any -->
+  @if (errorMessage) {
+    <div class="error-message">
+      {{ errorMessage }}
+    </div>
+  }
+
+  <!-- load during API requests -->
+  @if (isLoading) {
+    <div class="loader">
+      <div class="spinner"></div>
+      Chargement...
+    </div>
+  }
+
+  <!-- check we are not loading pictures -->
+  @if (!isLoading && mainApod) {
+    <div class="main-content">
+      <div class="main-apod">
+        <div class="apod-media">
+          @if (mainApod.media_type === 'image') {
+            <img
+              [src]="mainApod.url"
+              [alt]="mainApod.title"
+              class="apod-image"
+            />
+          }
+        </div>
+
+        <div class="apod-info">
+          <h2 class="apod-title">{{ mainApod.title }}</h2>
+          <p class="apod-date">{{ formatDisplayDate(mainApod.date) }}</p>
+          @if (mainApod.copyright) {
+            <p class="apod-copyright">
+              © {{ mainApod.copyright }}
+            </p>
+          }
+          <p class="apod-description">{{ mainApod.explanation }}</p>
+        </div>
+      </div>
+
+      <aside class="last-apods">
+        <h3>Les plus récentes</h3>
+        <div class="apod-cards">
+          @for (apod of recentApods; track apod.date) {
+            <div
+              class="apod-card"
+              role="button"
+              tabindex="0"
+              (click)="loadApod(apod)"
+              (keyup.enter)="loadApod(apod)"
+              (keyup.space)="loadApod(apod)"
+            >
+              @if (apod.media_type === 'image') {
+                <img
+                  [src]="apod.url"
+                  [alt]="apod.title"
+                  class="card-image"
+                />
+              }
+              <div class="card-overlay">
+                <p class="card-date">{{ formatDisplayDate(apod.date) }}</p>
+              </div>
+            </div>
+          }
+        </div>
+      </aside>
+    </div>
+  }
+</div>

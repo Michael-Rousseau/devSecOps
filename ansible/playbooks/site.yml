@@ -1,0 +1,11 @@
+---
+- name: Configure ECS EC2 instances
+  hosts: role_ecs_instance
+  become: true
+  vars_files:
+    - ../inventory/group_vars/ecs_instances.yml
+  roles:
+    - security
+    - docker
+    - ecs-agent
+    - cloudwatch-agent

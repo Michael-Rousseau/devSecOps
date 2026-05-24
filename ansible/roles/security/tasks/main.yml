@@ -1,0 +1,32 @@
+---
+- name: Disable root SSH login
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?PermitRootLogin"
+    line: "PermitRootLogin no"
+  notify: Restart sshd
+
+- name: Disable password authentication
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?PasswordAuthentication"
+    line: "PasswordAuthentication no"
+  notify: Restart sshd
+
+- name: Install security updates automatically
+  ansible.builtin.dnf:
+    name: dnf-automatic
+    state: present
+
+- name: Enable automatic security updates
+  ansible.builtin.systemd:
+    name: dnf-automatic-install.timer
+    state: started
+    enabled: true
+
+- name: Set restrictive permissions on cron
+  ansible.builtin.file:
+    path: /etc/crontab
+    owner: root
+    group: root
+    mode: "0600"

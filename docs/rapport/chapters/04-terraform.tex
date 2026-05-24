@@ -1,0 +1,92 @@
+\chapter{Terraform --- Infrastructure as Code}
+
+\section{Presentation}
+
+Terraform est utilise pour provisionner l'ensemble de l'infrastructure AWS de maniere
+declarative et reproductible. La configuration est organisee en modules reutilisables.
+
+\section{Gestion de l'etat}
+
+L'etat Terraform est stocke dans un bucket S3 avec verrouillage DynamoDB~:
+
+\begin{lstlisting}[language=bash,caption={Configuration du backend S3}]
+terraform {
+  backend "s3" {
+    bucket         = "deus-dashboard-tfstate"
+    key            = "dev/terraform.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "deus-dashboard-tf-locks"
+    encrypt        = true
+  }
+}
+\end{lstlisting}
+
+Ce mecanisme garantit~:
+\begin{itemize}
+    \item Le versionnement de l'etat (historique des changements)
+    \item Le verrouillage concurrent (un seul \texttt{apply} a la fois)
+    \item Le chiffrement au repos
+\end{itemize}
+
+\section{Organisation en modules}
+
+\begin{table}[H]
+    \centering
+    \begin{tabularx}{\textwidth}{lX}
+        \toprule
+        \textbf{Module} & \textbf{Ressources} \\
+        \midrule
+        vpc & VPC, sous-reseaux, IGW, NAT Gateway, tables de routage \\
+        s3-cloudfront & Bucket S3, distribution CloudFront, OAC \\
+        ecr & Repository ECR, politique de cycle de vie \\
+        ecs & Cluster ECS, Launch Template, ASG, ALB, Task Definition, Service \\
+        rds & Instance PostgreSQL, sous-groupe DB, Security Group \\
+        dynamodb & Table de cache avec TTL \\
+        bastion & Instance EC2 t2.micro, Security Group SSH \\
+        iam & Roles ECS (execution, task, instance), Instance Profile \\
+        ssm & Parametres SecureString (cle NASA, credentials DB) \\
+        monitoring & Log Groups, Alarmes CloudWatch, SNS, Dashboard \\
+        \bottomrule
+    \end{tabularx}
+    \caption{Modules Terraform et leurs ressources}
+\end{table}
+
+\section{Graphe de dependances}
+
+Les modules sont lies par leurs outputs/inputs~:
+
+\begin{lstlisting}[language={},caption={Ordre de deploiement}]
+VPC (base)
+  |-- Bastion, ECR, S3/CloudFront, DynamoDB (parallele)
+  |-- IAM (apres ECR, DynamoDB)
+  |-- RDS (apres VPC, Bastion)
+  |-- SSM (apres RDS, DynamoDB)
+  |-- ECS (apres tout)
+  |-- Monitoring (apres ECS, RDS)
+\end{lstlisting}
+
+\section{Variables et secrets}
+
+Les valeurs sensibles sont passees via \texttt{TF\_VAR\_*} en CI
+et ne sont jamais commitees dans le code~:
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{lll}
+        \toprule
+        \textbf{Variable} & \textbf{Type} & \textbf{Source} \\
+        \midrule
+        db\_password & sensitive & GitHub Secret \\
+        nasa\_api\_key & sensitive & GitHub Secret \\
+        ssh\_key\_name & string & GitHub Variable \\
+        \bottomrule
+    \end{tabular}
+    \caption{Variables sensibles Terraform}
+\end{table}
+
+% TODO: Ajouter capture d'ecran terraform plan
+% \begin{figure}[H]
+%     \centering
+%     \includegraphics[width=\textwidth]{terraform-plan.png}
+%     \caption{Sortie de terraform plan}
+% \end{figure}

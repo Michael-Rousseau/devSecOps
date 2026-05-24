@@ -1,0 +1,45 @@
+\chapter{Introduction}
+
+\section{Contexte du projet}
+
+Le projet DEUS Dashboard est une application web permettant de visualiser des donnees
+astronomiques fournies par les APIs de la NASA. L'application affiche l'image astronomique
+du jour (APOD), les evenements naturels terrestres (EONET), ainsi qu'une carte interactive
+de la Lune.
+
+L'objectif de ce projet est de mettre en \oe{}uvre une methodologie DevOps complete
+pour deployer cette application sur Amazon Web Services (AWS), en demontrant la maitrise
+des outils et pratiques essentiels du domaine.
+
+\section{Objectifs}
+
+\begin{itemize}
+    \item Conteneuriser l'application avec Docker
+    \item Provisionner l'infrastructure AWS avec Terraform (Infrastructure as Code)
+    \item Configurer les serveurs avec Ansible (Configuration Management)
+    \item Automatiser les deploiements avec GitHub Actions (CI/CD)
+    \item Mettre en place un monitoring avec CloudWatch
+    \item Securiser l'infrastructure (IAM, VPC, SSM Parameter Store)
+\end{itemize}
+
+\section{Technologies utilisees}
+
+\begin{table}[H]
+    \centering
+    \begin{tabularx}{\textwidth}{lX}
+        \toprule
+        \textbf{Categorie} & \textbf{Technologies} \\
+        \midrule
+        Frontend & Angular 20, TypeScript, Leaflet \\
+        Backend & Node.js, Express 5, TypeScript \\
+        Base de donnees & PostgreSQL 16 (RDS), DynamoDB \\
+        Conteneurisation & Docker, Docker Compose \\
+        Infrastructure & Terraform, AWS (VPC, ECS, ALB, S3, CloudFront) \\
+        Configuration & Ansible \\
+        CI/CD & GitHub Actions \\
+        Monitoring & CloudWatch (Logs, Metriques, Alarmes, Dashboard) \\
+        Securite & IAM, Security Groups, SSM Parameter Store \\
+        \bottomrule
+    \end{tabularx}
+    \caption{Stack technologique du projet}
+\end{table}

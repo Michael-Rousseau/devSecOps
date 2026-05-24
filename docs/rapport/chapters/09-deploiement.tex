@@ -1,0 +1,104 @@
+\chapter{Procedure de deploiement}
+
+\section{Prerequis}
+
+\begin{itemize}
+    \item Compte AWS Learner Lab actif
+    \item CLI AWS, Terraform, Ansible et Docker installes localement
+    \item Repository GitHub avec les secrets configures
+    \item Paire de cles SSH (key pair) creee dans la console AWS
+\end{itemize}
+
+\section{Etape 1 --- Initialisation des credentials}
+
+\begin{lstlisting}[language=bash,caption={Rotation des cles Learner Lab}]
+# Executer le script de rotation
+./scripts/update-aws-keys.sh
+
+# Verifier l'acces
+aws sts get-caller-identity
+\end{lstlisting}
+
+\textbf{Important~:} Les credentials Learner Lab expirent toutes les \~{}4 heures.
+Le script met a jour \texttt{\~{}/.aws/credentials} et optionnellement les GitHub Secrets.
+
+\section{Etape 2 --- Bootstrap Terraform}
+
+\begin{lstlisting}[language=bash,caption={Creation du bucket d'etat}]
+cd terraform/bootstrap
+terraform init
+terraform apply
+\end{lstlisting}
+
+Cette etape cree le bucket S3 et la table DynamoDB pour le state Terraform.
+Elle n'est executee qu'une seule fois.
+
+\section{Etape 3 --- Deploiement de l'infrastructure}
+
+\begin{lstlisting}[language=bash,caption={Deploiement complet}]
+cd terraform/environments/dev
+terraform init
+terraform plan -var="db_password=<MOT_DE_PASSE>" \
+               -var="nasa_api_key=<CLE_NASA>" \
+               -var="ssh_key_name=<NOM_KEY_PAIR>"
+terraform apply
+\end{lstlisting}
+
+\section{Etape 4 --- Configuration Ansible}
+
+\begin{lstlisting}[language=bash,caption={Execution d'Ansible}]
+cd ansible
+# Mettre a jour l'IP du bastion dans la config SSH
+ansible-playbook playbooks/site.yml
+\end{lstlisting}
+
+\section{Etape 5 --- Premier deploiement applicatif}
+
+\begin{lstlisting}[language=bash,caption={Build et push de l'image Docker}]
+# Backend
+cd backend
+aws ecr get-login-password | docker login --username AWS \
+  --password-stdin <ECR_URL>
+docker build -t <ECR_URL>:latest .
+docker push <ECR_URL>:latest
+
+# Frontend
+cd ..
+npm run build
+aws s3 sync dist/DEUS_Dashboard/browser/ s3://<BUCKET> --delete
+aws cloudfront create-invalidation \
+  --distribution-id <CF_ID> --paths "/*"
+\end{lstlisting}
+
+\section{Etape 6 --- Verification}
+
+\begin{enumerate}
+    \item Acceder au domaine CloudFront --- l'application Angular doit s'afficher
+    \item Verifier que l'APOD se charge (appel via le backend)
+    \item Tester la liste des evenements naturels
+    \item Consulter le dashboard CloudWatch
+    \item Verifier les logs dans le groupe \texttt{/ecs/deus-dashboard-backend}
+\end{enumerate}
+
+\section{Gestion des sessions Learner Lab}
+
+\begin{table}[H]
+    \centering
+    \begin{tabularx}{\textwidth}{lX}
+        \toprule
+        \textbf{Emplacement} & \textbf{Action requise} \\
+        \midrule
+        \texttt{\~{}/.aws/credentials} & Executer \texttt{update-aws-keys.sh} \\
+        GitHub Secrets & Repondre ``y'' dans le script \\
+        Backend S3 Terraform & Utilise les memes credentials CLI \\
+        \bottomrule
+    \end{tabularx}
+    \caption{Points de mise a jour des credentials}
+\end{table}
+
+% TODO: Captures d'ecran du deploiement
+% \begin{figure}[H]
+%     \centering
+%     \includegraphics[width=\textwidth]{deploy-cloudfront.png}
+%     \caption{Application deployee sur CloudFront}
+% \end{figure}

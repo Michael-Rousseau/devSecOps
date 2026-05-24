@@ -1,0 +1,94 @@
+\chapter{Backend API}
+
+\section{Presentation}
+
+Le backend est une API REST construite avec Express 5 et TypeScript. Son role principal
+est de servir de proxy securise vers les APIs NASA, en cachant la cle API cote serveur.
+
+\section{Structure du projet}
+
+\begin{lstlisting}[language={},caption={Arborescence du backend}]
+backend/
+  src/
+    index.ts           # Point d'entree
+    app.ts             # Configuration Express
+    config/
+      index.ts         # Variables d'environnement
+      database.ts      # Pool PostgreSQL
+      dynamodb.ts      # Client DynamoDB
+    routes/
+      health.ts        # GET /api/health
+      apod.ts          # GET /api/apod, /range, /random
+      events.ts        # GET /api/events
+      favorites.ts     # CRUD /api/favorites
+    services/
+      nasaApi.service.ts  # Appels HTTP vers NASA
+      cache.service.ts    # Cache DynamoDB
+    middleware/
+      errorHandler.ts
+\end{lstlisting}
+
+\section{Routes API}
+
+\begin{table}[H]
+    \centering
+    \begin{tabularx}{\textwidth}{llXl}
+        \toprule
+        \textbf{Methode} & \textbf{Route} & \textbf{Description} & \textbf{Cache} \\
+        \midrule
+        GET & /api/health & Verification de sante & Non \\
+        GET & /api/apod & Image du jour & DynamoDB \\
+        GET & /api/apod/range & Images par plage de dates & DynamoDB \\
+        GET & /api/apod/random & Images aleatoires & Non \\
+        GET & /api/events & Evenements naturels & DynamoDB \\
+        GET & /api/favorites & Liste des favoris & Non \\
+        POST & /api/favorites & Ajouter un favori & Non \\
+        DELETE & /api/favorites/:date & Supprimer un favori & Non \\
+        \bottomrule
+    \end{tabularx}
+    \caption{Endpoints de l'API}
+\end{table}
+
+\section{Dockerfile}
+
+Le Dockerfile utilise un build multi-stage pour minimiser la taille de l'image~:
+
+\begin{lstlisting}[language=bash,caption={Dockerfile multi-stage}]
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY tsconfig.json ./
+COPY src/ ./src/
+RUN npm run build
+
+FROM node:20-alpine
+WORKDIR /app
+RUN addgroup -g 1001 appgroup && \
+    adduser -u 1001 -G appgroup -s /bin/sh -D appuser
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/package*.json ./
+RUN npm ci --omit=dev
+USER appuser
+EXPOSE 3000
+CMD ["node", "dist/index.js"]
+\end{lstlisting}
+
+Points cles~:
+\begin{itemize}
+    \item Utilisateur non-root (\texttt{appuser}) pour la securite
+    \item \texttt{npm ci --omit=dev} en production pour reduire la taille
+    \item Base \texttt{node:20-alpine} pour une image legere (\~{}180 Mo)
+\end{itemize}
+
+\section{Docker Compose --- Developpement local}
+
+\begin{lstlisting}[language=bash,caption={Services docker-compose}]
+services:
+  backend:     # Express API (port 3000)
+  postgres:    # PostgreSQL 16 (port 5432)
+  dynamodb-local:  # DynamoDB Local (port 8000)
+\end{lstlisting}
+
+Le fichier \texttt{docker-compose.yml} a la racine du projet permet de lancer
+l'ensemble de la stack localement avec \texttt{docker compose up}.

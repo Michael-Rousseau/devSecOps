@@ -1,0 +1,92 @@
+\chapter{Architecture}
+
+\section{Vue d'ensemble}
+
+L'architecture suit un modele cloud-native avec separation entre le frontend statique
+et le backend API.
+
+% TODO: Remplacer par une capture d'ecran du diagramme d'architecture
+% \begin{figure}[H]
+%     \centering
+%     \includegraphics[width=\textwidth]{architecture-diagram.png}
+%     \caption{Diagramme d'architecture globale}
+% \end{figure}
+
+\begin{lstlisting}[language={},caption={Architecture simplifiee}]
+   Utilisateurs --> CloudFront --> S3 (Angular)
+   Utilisateurs --> ALB --> ECS (EC2) --> Express Backend
+                                |              |
+                           RDS PostgreSQL   DynamoDB (cache)
+
+   SSM Parameter Store <-- secrets
+   CloudWatch <-- logs, metriques, alarmes
+\end{lstlisting}
+
+\section{Composants}
+
+\subsection{Frontend --- S3 + CloudFront}
+
+L'application Angular est compilee en fichiers statiques et deployee sur un bucket S3.
+CloudFront sert de CDN avec~:
+\begin{itemize}
+    \item Origin Access Control (OAC) pour securiser l'acces au bucket
+    \item Redirection HTTPS automatique
+    \item Gestion du routage SPA (erreurs 403/404 redirigees vers \texttt{index.html})
+\end{itemize}
+
+\subsection{Backend --- ECS (EC2 Launch Type)}
+
+Le backend Express est conteneurise et deploye sur ECS avec le type de lancement EC2.
+Ce choix, plutot que Fargate, permet de~:
+\begin{itemize}
+    \item Configurer les instances EC2 avec Ansible
+    \item Demontrer la gestion de l'Auto Scaling Group
+    \item Installer des agents de monitoring personnalises
+\end{itemize}
+
+Un Application Load Balancer (ALB) distribue le trafic vers les conteneurs
+via le port mapping dynamique.
+
+\subsection{Bases de donnees}
+
+\begin{description}
+    \item[RDS PostgreSQL] Base relationnelle pour les favoris utilisateur et l'historique
+        de recherche. Instance \texttt{db.t3.micro} en single-AZ.
+    \item[DynamoDB] Cache des reponses API NASA avec TTL automatique.
+        Mode de facturation PAY\_PER\_REQUEST.
+\end{description}
+
+\section{Choix d'architecture}
+
+\begin{table}[H]
+    \centering
+    \begin{tabularx}{\textwidth}{lXl}
+        \toprule
+        \textbf{Decision} & \textbf{Justification} & \textbf{Alternative} \\
+        \midrule
+        ECS EC2 vs Fargate & Permet Ansible, plus pedagogique & Fargate \\
+        Bridge networking & Standard EC2, port mapping dynamique & awsvpc \\
+        Single NAT Gateway & Economie (\~{}32\$/mois) & HA NAT \\
+        PriceClass\_100 & Regions US/EU suffisantes & PriceClass\_All \\
+        Single-AZ RDS & Projet scolaire, economie & Multi-AZ \\
+        \bottomrule
+    \end{tabularx}
+    \caption{Decisions d'architecture et justifications}
+\end{table}
+
+\section{Reseau --- VPC}
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{llll}
+        \toprule
+        \textbf{Sous-reseau} & \textbf{CIDR} & \textbf{AZ} & \textbf{Usage} \\
+        \midrule
+        public\_a & 10.0.1.0/24 & us-east-1a & ALB, Bastion \\
+        public\_b & 10.0.2.0/24 & us-east-1b & ALB (2\textsuperscript{e} AZ) \\
+        private\_a & 10.0.10.0/24 & us-east-1a & ECS, RDS \\
+        private\_b & 10.0.11.0/24 & us-east-1b & Groupe RDS \\
+        \bottomrule
+    \end{tabular}
+    \caption{Allocation des sous-reseaux}
+\end{table}

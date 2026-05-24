@@ -1,0 +1,86 @@
+---
+- name: Create Grafana directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: ec2-user
+    group: ec2-user
+    mode: "0755"
+  loop:
+    - /opt/monitoring/grafana
+    - /opt/monitoring/grafana/provisioning
+    - /opt/monitoring/grafana/provisioning/datasources
+    - /opt/monitoring/grafana/provisioning/dashboards
+    - /opt/monitoring/grafana/dashboards
+    - /opt/monitoring/grafana/data
+
+- name: Set Grafana data directory permissions
+  ansible.builtin.file:
+    path: /opt/monitoring/grafana/data
+    state: directory
+    owner: "472"
+    group: "472"
+    mode: "0755"
+
+- name: Deploy datasources config
+  ansible.builtin.copy:
+    content: |
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          access: proxy
+          url: http://prometheus:9090
+          isDefault: true
+          editable: true
+        - name: CloudWatch
+          type: cloudwatch
+          access: proxy
+          jsonData:
+            authType: default
+            defaultRegion: {{ aws_region }}
+          editable: true
+    dest: /opt/monitoring/grafana/provisioning/datasources/datasources.yml
+    owner: ec2-user
+    mode: "0644"
+
+- name: Deploy dashboards provisioning config
+  ansible.builtin.copy:
+    content: |
+      apiVersion: 1
+      providers:
+        - name: "default"
+          orgId: 1
+          folder: "DEUS Dashboard"
+          type: file
+          options:
+            path: /var/lib/grafana/dashboards
+    dest: /opt/monitoring/grafana/provisioning/dashboards/dashboards.yml
+    owner: ec2-user
+    mode: "0644"
+
+- name: Copy dashboard JSON
+  ansible.builtin.copy:
+    src: ../../../../monitoring/grafana/dashboards/backend-overview.json
+    dest: /opt/monitoring/grafana/dashboards/backend-overview.json
+    owner: ec2-user
+    mode: "0644"
+
+- name: Run Grafana container
+  community.docker.docker_container:
+    name: grafana
+    image: grafana/grafana:latest
+    state: started
+    restart_policy: unless-stopped
+    ports:
+      - "3000:3000"
+    env:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: "{{ grafana_admin_password | default('admin') }}"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - /opt/monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - /opt/monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+      - /opt/monitoring/grafana/data:/var/lib/grafana
+    links:
+      - prometheus:prometheus

@@ -1,0 +1,31 @@
+<app-background-map [activeLayer]="currentLayer()"></app-background-map>
+
+<div class="dashboard-container">
+  <header>
+    <h1>DEUS DASHBOARD</h1>
+    <div class="controls">
+      <label>
+        Background:
+        <select (change)="changeBg($event)">
+          @for (layer of availableLayers; track layer.id) {
+            <option [value]="layer.id">{{ layer.name }}</option>
+          }
+        </select>
+      </label>
+    </div>
+  </header>
+
+  <main class="grid">
+    <section class="left">
+
+      <app-apod-component></app-apod-component>
+    </section>
+
+    <section class="right">
+      <app-event-list-component
+          [events]="(events$ | async)?.events || []"
+          (daysRequest)="refreshEvents()">
+      </app-event-list-component>
+    </section>
+  </main>
+</div>

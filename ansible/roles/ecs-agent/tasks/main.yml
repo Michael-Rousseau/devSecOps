@@ -1,0 +1,20 @@
+---
+- name: Install ECS agent
+  ansible.builtin.dnf:
+    name: amazon-ecs-init
+    state: present
+
+- name: Configure ECS agent
+  ansible.builtin.template:
+    src: ecs.config.j2
+    dest: /etc/ecs/ecs.config
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart ECS agent
+
+- name: Start and enable ECS agent
+  ansible.builtin.systemd:
+    name: ecs
+    state: started
+    enabled: true

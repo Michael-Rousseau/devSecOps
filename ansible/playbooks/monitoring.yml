@@ -1,0 +1,13 @@
+---
+- name: Configure monitoring instance (Prometheus + Grafana)
+  hosts: role_monitoring
+  become: true
+  vars:
+    aws_region: us-east-1
+    alb_dns_name: "{{ lookup('env', 'ALB_DNS_NAME') | default('localhost', true) }}"
+    grafana_admin_password: "{{ lookup('env', 'GRAFANA_ADMIN_PASSWORD') | default('admin', true) }}"
+  roles:
+    - docker
+    - node-exporter
+    - prometheus
+    - grafana

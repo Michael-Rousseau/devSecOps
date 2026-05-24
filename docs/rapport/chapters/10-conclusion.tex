@@ -1,0 +1,47 @@
+\chapter{Conclusion}
+
+\section{Bilan technique}
+
+Ce projet a permis de mettre en \oe{}uvre une chaine DevOps complete,
+couvrant l'ensemble du cycle de vie d'une application web~:
+
+\begin{itemize}
+    \item \textbf{Conteneurisation} --- Docker pour l'isolation et la reproductibilite
+    \item \textbf{Infrastructure as Code} --- Terraform avec 10 modules couvrant VPC,
+        ECS, RDS, DynamoDB, S3/CloudFront, IAM, SSM, et le monitoring
+    \item \textbf{Configuration Management} --- Ansible avec 4 roles pour la configuration
+        automatisee des instances EC2
+    \item \textbf{CI/CD} --- GitHub Actions avec 4 workflows (CI, deploiement frontend,
+        deploiement backend, Terraform plan/apply)
+    \item \textbf{Monitoring} --- CloudWatch avec logs, metriques, alarmes et dashboard
+    \item \textbf{Securite} --- IAM least-privilege, VPC segmente, SSM pour les secrets,
+        bastion SSH
+\end{itemize}
+
+\section{Difficultes rencontrees}
+
+\begin{itemize}
+    \item \textbf{Credentials Learner Lab} --- L'expiration toutes les 4 heures
+        necessite une rotation frequente, resolue par le script automatise
+    \item \textbf{Dependances circulaires Terraform} --- Le module RDS avait besoin
+        du Security Group ECS, qui dependait de SSM, qui dependait de RDS.
+        Resolution~: utilisation de CIDR blocks au lieu de references de Security Groups
+    \item \textbf{Dimensionnement ECS} --- Les instances \texttt{t3.micro} ne disposent
+        pas de suffisamment de memoire pour l'agent ECS et les conteneurs.
+        Solution~: utilisation de \texttt{t2.small}
+\end{itemize}
+
+\section{Ameliorations possibles}
+
+\begin{itemize}
+    \item \textbf{HTTPS} --- Ajout d'un certificat ACM avec un nom de domaine personnalise
+    \item \textbf{Auto Scaling} --- Policies de scaling automatique basees sur la charge
+    \item \textbf{Multi-environnement} --- Separation dev/staging/prod avec des workspaces
+        Terraform
+    \item \textbf{Authentification} --- Integration d'Amazon Cognito pour l'authentification
+        utilisateur
+    \item \textbf{Migration Fargate} --- Pour eliminer la gestion des instances EC2
+        en production
+    \item \textbf{Prometheus/Grafana} --- Pour un monitoring plus avance avec des dashboards
+        personnalises
+\end{itemize}

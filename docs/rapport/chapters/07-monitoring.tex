@@ -1,0 +1,157 @@
+\chapter{Monitoring et Logging}
+
+\section{Presentation}
+
+Le monitoring repose sur trois piliers complementaires~:
+\begin{itemize}
+    \item \textbf{CloudWatch} --- Monitoring AWS natif (logs, metriques, alarmes)
+    \item \textbf{Prometheus + Grafana} --- Metriques applicatives et dashboards personnalises
+    \item \textbf{SonarQube} --- Qualite du code et analyse statique
+\end{itemize}
+
+\section{CloudWatch}
+
+\subsection{Logs}
+
+Les conteneurs ECS emettent leurs logs via le driver \texttt{awslogs}
+vers le groupe \texttt{/ecs/deus-dashboard-backend} avec une retention de 14 jours.
+L'agent CloudWatch (installe par Ansible) collecte egalement les logs de l'agent ECS.
+
+\subsection{Alarmes}
+
+\begin{table}[H]
+    \centering
+    \begin{tabularx}{\textwidth}{lXl}
+        \toprule
+        \textbf{Alarme} & \textbf{Condition} & \textbf{Action} \\
+        \midrule
+        ECS CPU elevee & CPU > 80\% pendant 10 min & Email SNS \\
+        ECS memoire elevee & Memoire > 80\% pendant 10 min & Email SNS \\
+        ALB erreurs 5xx & > 10 erreurs en 5 min & Email SNS \\
+        RDS CPU elevee & CPU > 80\% pendant 10 min & Email SNS \\
+        RDS stockage bas & < 2 Go restants & Email SNS \\
+        \bottomrule
+    \end{tabularx}
+    \caption{Alarmes CloudWatch configurees}
+\end{table}
+
+\section{Prometheus}
+
+Prometheus est deploye sur une instance EC2 dediee au monitoring.
+Il collecte les metriques via le protocole pull (scraping)~:
+
+\begin{table}[H]
+    \centering
+    \begin{tabularx}{\textwidth}{llX}
+        \toprule
+        \textbf{Job} & \textbf{Cible} & \textbf{Metriques} \\
+        \midrule
+        deus-backend & ALB:80/api/metrics & Requetes HTTP (duree, compteur), cache hits/miss, heap Node.js \\
+        node-exporter & localhost:9100 & CPU, memoire, disque, reseau de l'instance \\
+        prometheus & localhost:9090 & Metriques internes de Prometheus \\
+        \bottomrule
+    \end{tabularx}
+    \caption{Jobs de scraping Prometheus}
+\end{table}
+
+\subsection{Metriques applicatives}
+
+Le backend expose un endpoint \texttt{/api/metrics} au format Prometheus
+grace a la librairie \texttt{prom-client}~:
+
+\begin{lstlisting}[language=bash,caption={Metriques exposees par le backend}]
+# Duree des requetes HTTP (histogramme)
+http_request_duration_seconds_bucket{method,route,status_code}
+
+# Compteur total de requetes
+http_requests_total{method,route,status_code}
+
+# Hits et miss du cache DynamoDB
+cache_hit_total{route}
+cache_miss_total{route}
+
+# Metriques Node.js par defaut
+nodejs_heap_size_used_bytes
+nodejs_active_handles_total
+process_cpu_user_seconds_total
+\end{lstlisting}
+
+\section{Grafana}
+
+Grafana est deploye sur la meme instance que Prometheus et fournit
+des dashboards interactifs.
+
+\subsection{Sources de donnees}
+
+\begin{itemize}
+    \item \textbf{Prometheus} --- Metriques applicatives et systeme
+    \item \textbf{CloudWatch} --- Metriques AWS (ECS, ALB, RDS)
+\end{itemize}
+
+\subsection{Dashboard Backend Overview}
+
+Le dashboard pre-provisionne comprend~:
+\begin{itemize}
+    \item Taux de requetes par seconde (par methode, route, code de statut)
+    \item Latence des requetes (percentiles p50 et p95)
+    \item Taux de hit du cache DynamoDB (jauge)
+    \item Taux d'erreurs 5xx
+    \item Utilisation CPU et memoire de l'instance (via Node Exporter)
+    \item Utilisation du heap Node.js
+\end{itemize}
+
+% TODO: Capture d'ecran du dashboard Grafana
+% \begin{figure}[H]
+%     \centering
+%     \includegraphics[width=\textwidth]{grafana-dashboard.png}
+%     \caption{Dashboard Grafana --- Backend Overview}
+% \end{figure}
+
+\section{SonarQube --- Qualite du code}
+
+SonarQube analyse le code source pour detecter~:
+\begin{itemize}
+    \item Les bugs potentiels
+    \item Les vulnerabilites de securite
+    \item Le code duplique
+    \item Les code smells (mauvaises pratiques)
+    \item La couverture de tests
+\end{itemize}
+
+\subsection{Integration CI}
+
+L'analyse SonarQube s'execute automatiquement dans le pipeline CI
+(GitHub Actions) apres les etapes de build. Le fichier
+\texttt{sonar-project.properties} configure les sources a analyser~:
+
+\begin{lstlisting}[language=bash,caption={Configuration SonarQube}]
+sonar.projectKey=deus-dashboard
+sonar.sources=src,backend/src
+sonar.exclusions=**/node_modules/**,**/dist/**
+\end{lstlisting}
+
+\subsection{Developpement local}
+
+SonarQube est egalement disponible en local via Docker Compose
+sur le port 9000 (\texttt{http://localhost:9000}).
+
+% TODO: Capture d'ecran SonarQube
+% \begin{figure}[H]
+%     \centering
+%     \includegraphics[width=\textwidth]{sonarqube-dashboard.png}
+%     \caption{Dashboard SonarQube}
+% \end{figure}
+
+\section{Architecture du monitoring}
+
+\begin{lstlisting}[language={},caption={Flux de monitoring}]
+   Backend (ECS) --scrape--> Prometheus
+                 --awslogs--> CloudWatch
+                 --sonar-scan--> SonarQube (CI)
+
+   Node Exporter --scrape--> Prometheus
+
+   Prometheus --> Grafana (dashboards)
+   CloudWatch --> Grafana (datasource)
+   CloudWatch --> SNS --> Email (alarmes)
+\end{lstlisting}

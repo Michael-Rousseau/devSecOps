@@ -1,0 +1,78 @@
+\chapter{Securite}
+
+\section{Gestion des secrets --- SSM Parameter Store}
+
+Les secrets sont stockes dans AWS Systems Manager Parameter Store
+en tant que \texttt{SecureString} (chiffres avec KMS)~:
+
+\begin{table}[H]
+    \centering
+    \begin{tabularx}{\textwidth}{lXl}
+        \toprule
+        \textbf{Parametre} & \textbf{Usage} & \textbf{Type} \\
+        \midrule
+        /deus-dashboard/dev/nasa-api-key & Cle API NASA & SecureString \\
+        /deus-dashboard/dev/pg-host & Adresse RDS & String \\
+        /deus-dashboard/dev/pg-password & Mot de passe DB & SecureString \\
+        /deus-dashboard/dev/dynamodb-table & Nom de la table & String \\
+        \bottomrule
+    \end{tabularx}
+    \caption{Parametres SSM}
+\end{table}
+
+Le role d'execution ECS lit ces parametres au demarrage du conteneur
+et les injecte comme variables d'environnement.
+
+\section{IAM --- Principe du moindre privilege}
+
+Trois roles IAM distincts~:
+
+\begin{description}
+    \item[Execution Role] Permet a ECS de~: tirer des images ECR,
+        lire les parametres SSM, ecrire dans CloudWatch Logs.
+    \item[Task Role] Permet au conteneur de~: acceder a DynamoDB
+        (lecture/ecriture sur la table de cache).
+    \item[Instance Role] Permet aux instances EC2 de~: s'enregistrer
+        au cluster ECS, utiliser SSM Session Manager, envoyer des metriques CloudWatch.
+\end{description}
+
+\section{Reseau --- Segmentation VPC}
+
+\begin{table}[H]
+    \centering
+    \begin{tabularx}{\textwidth}{lXl}
+        \toprule
+        \textbf{Security Group} & \textbf{Regles entrantes} & \textbf{Cible} \\
+        \midrule
+        sg-alb & 80/443 depuis 0.0.0.0/0 & ALB \\
+        sg-ecs & 32768-65535 depuis sg-alb, 22 depuis sg-bastion & Instances ECS \\
+        sg-rds & 5432 depuis sous-reseaux prives + sg-bastion & PostgreSQL \\
+        sg-bastion & 22 depuis IP autorisee & Bastion \\
+        \bottomrule
+    \end{tabularx}
+    \caption{Security Groups et regles}
+\end{table}
+
+Seul l'ALB est expose sur Internet. Les instances ECS et la base de donnees
+sont dans des sous-reseaux prives, accessibles uniquement via l'ALB
+ou le bastion SSH.
+
+\section{Bastion SSH}
+
+Le bastion est le point d'entree unique pour l'acces SSH aux ressources privees.
+Il est configure avec~:
+\begin{itemize}
+    \item Acces SSH restreint a l'IP de l'administrateur
+    \item Instance \texttt{t2.micro} (Free Tier)
+    \item Durcissement via Ansible (pas de root SSH, pas d'authentification par mot de passe)
+\end{itemize}
+
+\section{Cle API NASA}
+
+La cle API NASA, auparavant codee en dur dans le code source Angular
+(visible dans le navigateur), est desormais~:
+\begin{enumerate}
+    \item Stockee dans SSM Parameter Store (chiffree)
+    \item Injectee dans le conteneur backend via la Task Definition ECS
+    \item Utilisee cote serveur uniquement --- le frontend ne la voit plus
+\end{enumerate}

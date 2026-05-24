@@ -1,0 +1,84 @@
+\chapter{CI/CD --- GitHub Actions}
+
+\section{Presentation}
+
+Quatre workflows GitHub Actions automatisent l'ensemble du cycle de vie~:
+
+\begin{table}[H]
+    \centering
+    \begin{tabularx}{\textwidth}{lllX}
+        \toprule
+        \textbf{Workflow} & \textbf{Declencheur} & \textbf{Type} & \textbf{Actions} \\
+        \midrule
+        ci.yml & PR vers main & CI & Lint, test, build (frontend + backend) \\
+        cd-frontend.yml & Push sur main & CD & Build Angular, sync S3, invalidation CF \\
+        cd-backend.yml & Push sur main & CD & Build Docker, push ECR, deploy ECS \\
+        terraform.yml & PR / Push & IaC & Plan sur PR, Apply sur merge \\
+        \bottomrule
+    \end{tabularx}
+    \caption{Workflows GitHub Actions}
+\end{table}
+
+\section{Pipeline CI}
+
+Le workflow CI s'execute sur chaque Pull Request~:
+
+\begin{lstlisting}[language=bash,caption={Jobs CI en parallele}]
+frontend:
+  npm ci -> npm run lint -> npm run build
+
+backend:
+  cd backend && npm ci -> npm run build
+\end{lstlisting}
+
+La concurrence est geree pour annuler les executions obsoletes sur une meme branche.
+
+\section{Deploiement Frontend}
+
+\begin{enumerate}
+    \item Build de l'application Angular en mode production
+    \item Synchronisation des fichiers vers le bucket S3
+    \item Invalidation du cache CloudFront
+\end{enumerate}
+
+\section{Deploiement Backend}
+
+\begin{enumerate}
+    \item Build de l'image Docker
+    \item Push vers Amazon ECR (tag: SHA du commit + latest)
+    \item Mise a jour de la Task Definition ECS
+    \item Deploiement du service ECS avec attente de stabilite
+\end{enumerate}
+
+\section{Terraform en CI}
+
+\begin{description}
+    \item[Sur Pull Request] \texttt{terraform plan} est execute et le resultat
+        est poste en commentaire sur la PR pour revue.
+    \item[Sur merge vers main] \texttt{terraform apply -auto-approve} est execute
+        automatiquement.
+\end{description}
+
+\section{Gestion des credentials AWS Learner Lab}
+
+Les credentials AWS Learner Lab expirent toutes les \~{}4 heures.
+Un script \texttt{scripts/update-aws-keys.sh} permet de mettre a jour
+simultanement~:
+\begin{itemize}
+    \item \texttt{\~{}/.aws/credentials} (CLI locale)
+    \item Les GitHub Secrets (via \texttt{gh secret set})
+\end{itemize}
+
+Les trois secrets concernes sont~:
+\begin{itemize}
+    \item \texttt{AWS\_ACCESS\_KEY\_ID}
+    \item \texttt{AWS\_SECRET\_ACCESS\_KEY}
+    \item \texttt{AWS\_SESSION\_TOKEN}
+\end{itemize}
+
+% TODO: Captures d'ecran GitHub Actions
+% \begin{figure}[H]
+%     \centering
+%     \includegraphics[width=\textwidth]{github-actions-ci.png}
+%     \caption{Pipeline CI sur une Pull Request}
+% \end{figure}

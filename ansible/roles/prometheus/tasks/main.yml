@@ -1,0 +1,53 @@
+---
+- name: Create Prometheus directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: ec2-user
+    group: ec2-user
+    mode: "0755"
+  loop:
+    - /opt/monitoring
+    - /opt/monitoring/prometheus
+    - /opt/monitoring/prometheus/data
+
+- name: Deploy Prometheus config
+  ansible.builtin.copy:
+    content: |
+      global:
+        scrape_interval: 15s
+        evaluation_interval: 15s
+
+      scrape_configs:
+        - job_name: "prometheus"
+          static_configs:
+            - targets: ["localhost:9090"]
+
+        - job_name: "deus-backend"
+          metrics_path: /api/metrics
+          static_configs:
+            - targets: ["{{ alb_dns_name }}:80"]
+          scrape_interval: 10s
+
+        - job_name: "node-exporter"
+          static_configs:
+            - targets: ["localhost:9100"]
+    dest: /opt/monitoring/prometheus/prometheus.yml
+    owner: ec2-user
+    group: ec2-user
+    mode: "0644"
+
+- name: Run Prometheus container
+  community.docker.docker_container:
+    name: prometheus
+    image: prom/prometheus:latest
+    state: started
+    restart_policy: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - /opt/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - /opt/monitoring/prometheus/data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=7d"

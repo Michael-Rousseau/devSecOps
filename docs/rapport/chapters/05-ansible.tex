@@ -1,0 +1,77 @@
+\chapter{Ansible --- Configuration Management}
+
+\section{Presentation}
+
+Ansible est utilise pour configurer les instances EC2 qui hebergent les conteneurs ECS.
+Il intervient apres le provisionnement Terraform pour installer et configurer~:
+\begin{itemize}
+    \item Docker et le daemon ECS
+    \item L'agent CloudWatch pour les metriques systeme
+    \item Le durcissement de securite des instances
+\end{itemize}
+
+\section{Inventaire dynamique}
+
+L'inventaire utilise le plugin \texttt{amazon.aws.aws\_ec2} pour decouvrir
+automatiquement les instances~:
+
+\begin{lstlisting}[language=bash,caption={Inventaire dynamique AWS}]
+plugin: amazon.aws.aws_ec2
+regions:
+  - us-east-1
+filters:
+  tag:Project: deus-dashboard
+  instance-state-name: running
+keyed_groups:
+  - key: tags.Role
+    prefix: role
+\end{lstlisting}
+
+Les instances sont groupees par leur tag \texttt{Role}, ce qui permet
+de cibler \texttt{role\_ecs\_instance} dans les playbooks.
+
+\section{Roles}
+
+\subsection{Role \texttt{security}}
+
+Durcissement des instances~:
+\begin{itemize}
+    \item Desactivation du login SSH root
+    \item Desactivation de l'authentification par mot de passe
+    \item Installation des mises a jour de securite automatiques
+    \item Restriction des permissions cron
+\end{itemize}
+
+\subsection{Role \texttt{docker}}
+
+Installation et activation de Docker CE sur les instances Amazon Linux 2023.
+
+\subsection{Role \texttt{ecs-agent}}
+
+Configuration de l'agent ECS via le template \texttt{/etc/ecs/ecs.config}
+qui specifie le cluster cible et active les metadonnees de conteneur.
+
+\subsection{Role \texttt{cloudwatch-agent}}
+
+Installation de l'agent CloudWatch unifie avec collecte~:
+\begin{itemize}
+    \item Metriques CPU, memoire, disque
+    \item Logs de l'agent ECS (\texttt{/var/log/ecs/ecs-agent.log})
+\end{itemize}
+
+\section{Connexion via Bastion}
+
+Les instances ECS sont dans des sous-reseaux prives. Ansible s'y connecte
+via SSH ProxyJump a travers le bastion~:
+
+\begin{lstlisting}[language=bash,caption={Connexion SSH via Bastion}]
+ansible_ssh_common_args: >
+  -o ProxyJump=ec2-user@<bastion_ip>
+\end{lstlisting}
+
+% TODO: Ajouter capture d'ecran de l'execution Ansible
+% \begin{figure}[H]
+%     \centering
+%     \includegraphics[width=\textwidth]{ansible-run.png}
+%     \caption{Execution du playbook Ansible}
+% \end{figure}
