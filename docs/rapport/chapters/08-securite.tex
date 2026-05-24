@@ -23,18 +23,50 @@ en tant que \texttt{SecureString} (chiffres avec KMS)~:
 Le role d'execution ECS lit ces parametres au demarrage du conteneur
 et les injecte comme variables d'environnement.
 
-\section{IAM --- Principe du moindre privilege}
+\section{IAM --- Adaptations Learner Lab}
 
-Trois roles IAM distincts~:
+\subsection{Architecture cible vs. realite Learner Lab}
+
+L'architecture ideale prevoyait trois roles IAM distincts suivant le
+principe du moindre privilege~:
 
 \begin{description}
-    \item[Execution Role] Permet a ECS de~: tirer des images ECR,
+    \item[Execution Role] Permettrait a ECS de~: tirer des images ECR,
         lire les parametres SSM, ecrire dans CloudWatch Logs.
-    \item[Task Role] Permet au conteneur de~: acceder a DynamoDB
+    \item[Task Role] Permettrait au conteneur de~: acceder a DynamoDB
         (lecture/ecriture sur la table de cache).
-    \item[Instance Role] Permet aux instances EC2 de~: s'enregistrer
+    \item[Instance Role] Permettrait aux instances EC2 de~: s'enregistrer
         au cluster ECS, utiliser SSM Session Manager, envoyer des metriques CloudWatch.
 \end{description}
+
+\subsection{Contrainte Learner Lab}
+
+L'environnement AWS Academy Learner Lab interdit la creation de roles IAM
+(\texttt{iam:CreateRole} non autorise). En consequence, l'ensemble des
+ressources utilisent le role pre-existant \textbf{LabRole}, qui dispose
+de permissions larges couvrant les services necessaires (ECS, ECR, SSM,
+CloudWatch, DynamoDB, S3, RDS).
+
+\begin{lstlisting}[language=bash,caption={Utilisation du LabRole dans Terraform}]
+# Au lieu de creer des roles personnalises
+data "aws_iam_role" "lab_role" {
+  name = "LabRole"
+}
+
+# Execution role et task role ECS
+execution_role_arn = data.aws_iam_role.lab_role.arn
+task_role_arn      = data.aws_iam_role.lab_role.arn
+
+# Instance profile pour les EC2 (ECS, bastion)
+data "aws_iam_instance_profile" "lab_profile" {
+  name = "LabInstanceProfile"
+}
+\end{lstlisting}
+
+\textbf{Compromis de securite~:} Le \texttt{LabRole} dispose de permissions
+plus larges que necessaire, ce qui contrevient au principe du moindre privilege.
+En environnement de production, on creerait des roles specifiques avec des
+politiques restrictives pour chaque composant.
 
 \section{Reseau --- Segmentation VPC}
 

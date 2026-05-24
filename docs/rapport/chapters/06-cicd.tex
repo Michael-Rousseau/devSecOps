@@ -2,6 +2,8 @@
 
 \section{Presentation}
 
+Le code source est heberge sur le depot GitHub
+\texttt{Michael-Rousseau/devSecOps}\footnote{\texttt{https://github.com/Michael-Rousseau/devSecOps}}.
 Quatre workflows GitHub Actions automatisent l'ensemble du cycle de vie~:
 
 \begin{table}[H]
@@ -11,7 +13,7 @@ Quatre workflows GitHub Actions automatisent l'ensemble du cycle de vie~:
         \textbf{Workflow} & \textbf{Declencheur} & \textbf{Type} & \textbf{Actions} \\
         \midrule
         ci.yml & PR vers main & CI & Lint, test, build (frontend + backend) \\
-        cd-frontend.yml & Push sur main & CD & Build Angular, sync S3, invalidation CF \\
+        cd-frontend.yml & Push sur main & CD & Build Angular, sync S3 (\texttt{deus-dashboard-frontend-dev}) \\
         cd-backend.yml & Push sur main & CD & Build Docker, push ECR, deploy ECS \\
         terraform.yml & PR / Push & IaC & Plan sur PR, Apply sur merge \\
         \bottomrule
@@ -38,16 +40,24 @@ La concurrence est geree pour annuler les executions obsoletes sur une meme bran
 \begin{enumerate}
     \item Build de l'application Angular en mode production
     \item Synchronisation des fichiers vers le bucket S3
-    \item Invalidation du cache CloudFront
+        \texttt{deus-dashboard-frontend-dev} via \texttt{aws s3 sync}
 \end{enumerate}
+
+\textbf{Note~:} L'etape d'invalidation CloudFront initialement prevue a ete
+supprimee car l'hebergement utilise le mode S3 Static Website Hosting
+(cf. chapitre~\ref{chap:architecture} --- Adaptations Learner Lab).
 
 \section{Deploiement Backend}
 
 \begin{enumerate}
     \item Build de l'image Docker
-    \item Push vers Amazon ECR (tag: SHA du commit + latest)
-    \item Mise a jour de la Task Definition ECS
-    \item Deploiement du service ECS avec attente de stabilite
+    \item Push vers Amazon ECR
+        \texttt{459624991030.dkr.ecr.us-east-1.amazonaws.com/deus-dashboard-backend}
+        (tag~: SHA du commit + latest)
+    \item Mise a jour de la Task Definition ECS sur le cluster
+        \texttt{deus-dashboard-dev}
+    \item Deploiement du service ECS \texttt{deus-dashboard-backend}
+        avec attente de stabilite
 \end{enumerate}
 
 \section{Terraform en CI}
@@ -61,12 +71,14 @@ La concurrence est geree pour annuler les executions obsoletes sur une meme bran
 
 \section{Gestion des credentials AWS Learner Lab}
 
-Les credentials AWS Learner Lab expirent toutes les \~{}4 heures.
+Les credentials AWS Learner Lab (compte \texttt{459624991030}, region
+\texttt{us-east-1}) expirent toutes les \~{}4 heures.
 Un script \texttt{scripts/update-aws-keys.sh} permet de mettre a jour
 simultanement~:
 \begin{itemize}
     \item \texttt{\~{}/.aws/credentials} (CLI locale)
-    \item Les GitHub Secrets (via \texttt{gh secret set})
+    \item Les GitHub Secrets du depot \texttt{Michael-Rousseau/devSecOps}
+        (via \texttt{gh secret set})
 \end{itemize}
 
 Les trois secrets concernes sont~:
@@ -75,6 +87,13 @@ Les trois secrets concernes sont~:
     \item \texttt{AWS\_SECRET\_ACCESS\_KEY}
     \item \texttt{AWS\_SESSION\_TOKEN}
 \end{itemize}
+
+\textbf{Limitation~:} L'absence de federation OIDC (non autorisee par Learner Lab)
+impose l'utilisation de cles statiques dans les GitHub Secrets. Ces cles doivent
+etre renouvelees manuellement avant chaque session de deploiement. En production,
+on privilegierait un provider OIDC
+(\texttt{aws-actions/configure-aws-credentials}) pour eviter le stockage de cles
+longue duree.
 
 % TODO: Captures d'ecran GitHub Actions
 % \begin{figure}[H]

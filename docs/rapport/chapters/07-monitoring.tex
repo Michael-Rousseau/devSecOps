@@ -37,7 +37,9 @@ L'agent CloudWatch (installe par Ansible) collecte egalement les logs de l'agent
 
 \section{Prometheus}
 
-Prometheus est deploye sur une instance EC2 dediee au monitoring.
+Prometheus est deploye sur une instance EC2 dediee au monitoring
+(\texttt{34.207.159.92}), accessible a l'adresse
+\texttt{http://34.207.159.92:9090}.
 Il collecte les metriques via le protocole pull (scraping)~:
 
 \begin{table}[H]
@@ -78,8 +80,8 @@ process_cpu_user_seconds_total
 
 \section{Grafana}
 
-Grafana est deploye sur la meme instance que Prometheus et fournit
-des dashboards interactifs.
+Grafana est deploye sur la meme instance que Prometheus
+(\texttt{http://34.207.159.92:3000}) et fournit des dashboards interactifs.
 
 \subsection{Sources de donnees}
 
@@ -99,6 +101,22 @@ Le dashboard pre-provisionne comprend~:
     \item Utilisation CPU et memoire de l'instance (via Node Exporter)
     \item Utilisation du heap Node.js
 \end{itemize}
+
+\subsection{Acces au monitoring}
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{lll}
+        \toprule
+        \textbf{Service} & \textbf{URL} & \textbf{Port} \\
+        \midrule
+        Grafana & \texttt{http://34.207.159.92:3000} & 3000 \\
+        Prometheus & \texttt{http://34.207.159.92:9090} & 9090 \\
+        Node Exporter & \texttt{http://34.207.159.92:9100} & 9100 \\
+        \bottomrule
+    \end{tabular}
+    \caption{URLs d'acces aux services de monitoring}
+\end{table}
 
 % TODO: Capture d'ecran du dashboard Grafana
 % \begin{figure}[H]

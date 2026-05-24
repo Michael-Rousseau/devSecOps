@@ -37,13 +37,13 @@ Ce mecanisme garantit~:
         \textbf{Module} & \textbf{Ressources} \\
         \midrule
         vpc & VPC, sous-reseaux, IGW, NAT Gateway, tables de routage \\
-        s3-cloudfront & Bucket S3, distribution CloudFront, OAC \\
+        s3 & Bucket S3, hebergement statique, ACLs publiques \\
         ecr & Repository ECR, politique de cycle de vie \\
         ecs & Cluster ECS, Launch Template, ASG, ALB, Task Definition, Service \\
         rds & Instance PostgreSQL, sous-groupe DB, Security Group \\
         dynamodb & Table de cache avec TTL \\
         bastion & Instance EC2 t2.micro, Security Group SSH \\
-        iam & Roles ECS (execution, task, instance), Instance Profile \\
+        iam & Utilisation de LabRole et LabInstanceProfile pre-existants \\
         ssm & Parametres SecureString (cle NASA, credentials DB) \\
         monitoring & Log Groups, Alarmes CloudWatch, SNS, Dashboard \\
         \bottomrule
@@ -57,8 +57,8 @@ Les modules sont lies par leurs outputs/inputs~:
 
 \begin{lstlisting}[language={},caption={Ordre de deploiement}]
 VPC (base)
-  |-- Bastion, ECR, S3/CloudFront, DynamoDB (parallele)
-  |-- IAM (apres ECR, DynamoDB)
+  |-- Bastion, ECR, S3, DynamoDB (parallele)
+  |-- IAM (LabRole pre-existant, reference par data source)
   |-- RDS (apres VPC, Bastion)
   |-- SSM (apres RDS, DynamoDB)
   |-- ECS (apres tout)
@@ -84,9 +84,58 @@ et ne sont jamais commitees dans le code~:
     \caption{Variables sensibles Terraform}
 \end{table}
 
-% TODO: Ajouter capture d'ecran terraform plan
-% \begin{figure}[H]
-%     \centering
-%     \includegraphics[width=\textwidth]{terraform-plan.png}
-%     \caption{Sortie de terraform plan}
-% \end{figure}
+\section{Adaptations pour AWS Learner Lab}
+
+L'environnement AWS Academy Learner Lab impose plusieurs contraintes qui ont
+necessite des adaptations de la configuration Terraform~:
+
+\begin{table}[H]
+    \centering
+    \begin{tabularx}{\textwidth}{lXX}
+        \toprule
+        \textbf{Contrainte} & \textbf{Probleme} & \textbf{Solution adoptee} \\
+        \midrule
+        Creation de roles IAM & \texttt{iam:CreateRole} non autorise & Utilisation des roles
+            pre-existants \texttt{LabRole} et \texttt{LabInstanceProfile} via
+            \texttt{data} sources Terraform \\
+        CloudFront OAC & Impossible de creer des distributions CloudFront
+            avec OAC & Hebergement statique S3 avec ACLs publiques
+            (\texttt{aws\_s3\_bucket\_public\_access\_block} desactive) \\
+        PostgreSQL 16.4 & Version non disponible dans le catalogue RDS
+            Learner Lab & Utilisation de PostgreSQL 16.14
+            (\texttt{engine\_version = "16.14"}) \\
+        Expiration des credentials & Les cles AWS expirent toutes les \~{}4 heures &
+            Script de rotation \texttt{scripts/update-aws-keys.sh} \\
+        Federation OIDC & Impossible de configurer un provider OIDC pour
+            GitHub Actions & Cles statiques stockees dans les GitHub Secrets,
+            renouvelees manuellement \\
+        \bottomrule
+    \end{tabularx}
+    \caption{Adaptations pour l'environnement Learner Lab}
+\end{table}
+
+\subsection{Exemple --- Reference au LabRole}
+
+Au lieu de creer des roles IAM personnalises, la configuration utilise
+des \texttt{data} sources pour referencer les roles pre-existants~:
+
+\begin{lstlisting}[language=bash,caption={Reference au LabRole dans Terraform}]
+data "aws_iam_role" "lab_role" {
+  name = "LabRole"
+}
+
+data "aws_iam_instance_profile" "lab_profile" {
+  name = "LabInstanceProfile"
+}
+
+# Utilisation dans la Task Definition ECS
+resource "aws_ecs_task_definition" "backend" {
+  execution_role_arn = data.aws_iam_role.lab_role.arn
+  task_role_arn      = data.aws_iam_role.lab_role.arn
+  # ...
+}
+\end{lstlisting}
+
+Cette approche evite les erreurs \texttt{AccessDenied} tout en conservant
+les permissions necessaires (le \texttt{LabRole} dispose de permissions
+suffisantes pour ECS, ECR, SSM, CloudWatch et DynamoDB).

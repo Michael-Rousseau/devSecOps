@@ -1,4 +1,5 @@
 \chapter{Architecture}
+\label{chap:architecture}
 
 \section{Vue d'ensemble}
 
@@ -13,26 +14,41 @@ et le backend API.
 % \end{figure}
 
 \begin{lstlisting}[language={},caption={Architecture simplifiee}]
-   Utilisateurs --> CloudFront --> S3 (Angular)
+   Utilisateurs --> S3 Static Website Hosting (Angular)
    Utilisateurs --> ALB --> ECS (EC2) --> Express Backend
                                 |              |
                            RDS PostgreSQL   DynamoDB (cache)
 
    SSM Parameter Store <-- secrets
    CloudWatch <-- logs, metriques, alarmes
+   Prometheus + Grafana <-- metriques applicatives
 \end{lstlisting}
+
+\noindent\textbf{URLs de deploiement~:}
+\begin{description}
+    \item[Frontend] \texttt{deus-dashboard-frontend-dev.s3-website-us-east-1.amazonaws.com}
+    \item[Backend (ALB)] \texttt{deus-dashboard-alb-1071352964.us-east-1.elb.amazonaws.com}
+    \item[Monitoring (Grafana)] \texttt{http://34.207.159.92:3000}
+\end{description}
 
 \section{Composants}
 
-\subsection{Frontend --- S3 + CloudFront}
+\subsection{Frontend --- S3 Static Website Hosting}
 
-L'application Angular est compilee en fichiers statiques et deployee sur un bucket S3.
-CloudFront sert de CDN avec~:
+L'application Angular est compilee en fichiers statiques et deployee sur le bucket S3
+\texttt{deus-dashboard-frontend-dev}. Le bucket est configure en mode
+\emph{Static Website Hosting} avec~:
 \begin{itemize}
-    \item Origin Access Control (OAC) pour securiser l'acces au bucket
-    \item Redirection HTTPS automatique
-    \item Gestion du routage SPA (erreurs 403/404 redirigees vers \texttt{index.html})
+    \item ACLs publiques pour permettre l'acces en lecture
+    \item Document d'index \texttt{index.html}
+    \item Gestion du routage SPA (document d'erreur redirige vers \texttt{index.html})
 \end{itemize}
+
+\textbf{Note~:} L'architecture initiale prevoyait CloudFront avec Origin Access Control (OAC)
+comme CDN. Cependant, l'environnement AWS Learner Lab ne permet pas la creation
+de distributions CloudFront avec OAC (permissions IAM insuffisantes). La solution
+adoptee est l'hebergement statique S3 direct, qui reste fonctionnel pour un projet
+pedagogique.
 
 \subsection{Backend --- ECS (EC2 Launch Type)}
 
@@ -67,7 +83,7 @@ via le port mapping dynamique.
         ECS EC2 vs Fargate & Permet Ansible, plus pedagogique & Fargate \\
         Bridge networking & Standard EC2, port mapping dynamique & awsvpc \\
         Single NAT Gateway & Economie (\~{}32\$/mois) & HA NAT \\
-        PriceClass\_100 & Regions US/EU suffisantes & PriceClass\_All \\
+        S3 Website vs CloudFront & CloudFront OAC bloque par Learner Lab & CloudFront \\
         Single-AZ RDS & Projet scolaire, economie & Multi-AZ \\
         \bottomrule
     \end{tabularx}

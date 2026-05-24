@@ -15,12 +15,19 @@
 # Executer le script de rotation
 ./scripts/update-aws-keys.sh
 
-# Verifier l'acces
+# Verifier l'acces (doit retourner le compte 459624991030)
 aws sts get-caller-identity
+# {
+#   "Account": "459624991030",
+#   "Arn": "arn:aws:sts::459624991030:assumed-role/...",
+#   "UserId": "..."
+# }
 \end{lstlisting}
 
-\textbf{Important~:} Les credentials Learner Lab expirent toutes les \~{}4 heures.
-Le script met a jour \texttt{\~{}/.aws/credentials} et optionnellement les GitHub Secrets.
+\textbf{Important~:} Les credentials Learner Lab (compte \texttt{459624991030},
+region \texttt{us-east-1}) expirent toutes les \~{}4 heures.
+Le script met a jour \texttt{\~{}/.aws/credentials} et les GitHub Secrets
+du depot \texttt{Michael-Rousseau/devSecOps}.
 
 \section{Etape 2 --- Bootstrap Terraform}
 
@@ -48,37 +55,78 @@ terraform apply
 
 \begin{lstlisting}[language=bash,caption={Execution d'Ansible}]
 cd ansible
-# Mettre a jour l'IP du bastion dans la config SSH
+# Mettre a jour l'IP du bastion (35.173.122.117)
+# dans la config SSH et l'inventaire
 ansible-playbook playbooks/site.yml
 \end{lstlisting}
 
 \section{Etape 5 --- Premier deploiement applicatif}
 
 \begin{lstlisting}[language=bash,caption={Build et push de l'image Docker}]
-# Backend
+# Backend --- Build et push vers ECR
 cd backend
-aws ecr get-login-password | docker login --username AWS \
-  --password-stdin <ECR_URL>
-docker build -t <ECR_URL>:latest .
-docker push <ECR_URL>:latest
+aws ecr get-login-password --region us-east-1 | docker login \
+  --username AWS --password-stdin \
+  459624991030.dkr.ecr.us-east-1.amazonaws.com
 
-# Frontend
+docker build -t \
+  459624991030.dkr.ecr.us-east-1.amazonaws.com/deus-dashboard-backend:latest .
+docker push \
+  459624991030.dkr.ecr.us-east-1.amazonaws.com/deus-dashboard-backend:latest
+
+# Forcer le redeploiement du service ECS
+aws ecs update-service --cluster deus-dashboard-dev \
+  --service deus-dashboard-backend --force-new-deployment \
+  --region us-east-1
+
+# Frontend --- Build et deploiement S3
 cd ..
 npm run build
-aws s3 sync dist/DEUS_Dashboard/browser/ s3://<BUCKET> --delete
-aws cloudfront create-invalidation \
-  --distribution-id <CF_ID> --paths "/*"
+aws s3 sync dist/DEUS_Dashboard/browser/ \
+  s3://deus-dashboard-frontend-dev --delete
 \end{lstlisting}
 
 \section{Etape 6 --- Verification}
 
 \begin{enumerate}
-    \item Acceder au domaine CloudFront --- l'application Angular doit s'afficher
+    \item Acceder au frontend S3~:\\
+        \texttt{http://deus-dashboard-frontend-dev.s3-website-us-east-1.amazonaws.com}\\
+        L'application Angular doit s'afficher.
+    \item Verifier le backend via l'ALB~:\\
+        \texttt{http://deus-dashboard-alb-1071352964.us-east-1.elb.amazonaws.com/api/health}
     \item Verifier que l'APOD se charge (appel via le backend)
     \item Tester la liste des evenements naturels
-    \item Consulter le dashboard CloudWatch
-    \item Verifier les logs dans le groupe \texttt{/ecs/deus-dashboard-backend}
+    \item Consulter le dashboard Grafana~: \texttt{http://34.207.159.92:3000}
+    \item Verifier les metriques Prometheus~: \texttt{http://34.207.159.92:9090}
+    \item Verifier les logs dans le groupe CloudWatch
+        \texttt{/ecs/deus-dashboard-backend}
 \end{enumerate}
+
+\section{Ressources deployees}
+
+\begin{table}[H]
+    \centering
+    \begin{tabularx}{\textwidth}{lX}
+        \toprule
+        \textbf{Ressource} & \textbf{Identifiant / URL} \\
+        \midrule
+        Frontend (S3) & \texttt{deus-dashboard-frontend-dev.s3-website-us-east-1.amazonaws.com} \\
+        Backend (ALB) & \texttt{deus-dashboard-alb-1071352964.us-east-1.elb.amazonaws.com} \\
+        ECR Repository & \texttt{459624991030.dkr.ecr.us-east-1.amazonaws.com/deus-dashboard-backend} \\
+        ECS Cluster & \texttt{deus-dashboard-dev} \\
+        ECS Service & \texttt{deus-dashboard-backend} \\
+        DynamoDB Table & \texttt{deus-dashboard-cache-dev} \\
+        S3 Bucket & \texttt{deus-dashboard-frontend-dev} \\
+        Bastion IP & \texttt{35.173.122.117} \\
+        Monitoring IP & \texttt{34.207.159.92} \\
+        Grafana & \texttt{http://34.207.159.92:3000} \\
+        Prometheus & \texttt{http://34.207.159.92:9090} \\
+        Compte AWS & \texttt{459624991030} \\
+        Region & \texttt{us-east-1} \\
+        \bottomrule
+    \end{tabularx}
+    \caption{Recapitulatif des ressources deployees}
+\end{table}
 
 \section{Gestion des sessions Learner Lab}
 
@@ -99,6 +147,6 @@ aws cloudfront create-invalidation \
 % TODO: Captures d'ecran du deploiement
 % \begin{figure}[H]
 %     \centering
-%     \includegraphics[width=\textwidth]{deploy-cloudfront.png}
-%     \caption{Application deployee sur CloudFront}
+%     \includegraphics[width=\textwidth]{deploy-s3.png}
+%     \caption{Application deployee sur S3 Static Website Hosting}
 % \end{figure}
