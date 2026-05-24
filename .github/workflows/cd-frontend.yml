@@ -11,7 +11,7 @@ on:
 
 jobs:
   deploy:
-    name: Deploy to S3/CloudFront
+    name: Deploy to S3
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,6 +33,3 @@ jobs:
 
       - name: Sync to S3
         run: aws s3 sync dist/DEUS_Dashboard/browser/ s3://${{ vars.S3_BUCKET_NAME }} --delete
-
-      - name: Invalidate CloudFront cache
-        run: aws cloudfront create-invalidation --distribution-id ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }} --paths "/*"

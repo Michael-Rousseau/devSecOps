@@ -54,9 +54,8 @@ module "dynamodb" {
 }
 
 module "iam" {
-  source             = "../../modules/iam"
-  project_name       = var.project_name
-  dynamodb_table_arn = module.dynamodb.table_arn
+  source       = "../../modules/iam"
+  project_name = var.project_name
 }
 
 module "rds" {

@@ -1,15 +1,15 @@
 output "ecs_execution_role_arn" {
-  value = aws_iam_role.ecs_execution.arn
+  value = data.aws_iam_role.lab_role.arn
 }
 
 output "ecs_task_role_arn" {
-  value = aws_iam_role.ecs_task.arn
+  value = data.aws_iam_role.lab_role.arn
 }
 
 output "ecs_instance_profile_name" {
-  value = aws_iam_instance_profile.ecs.name
+  value = data.aws_iam_instance_profile.lab.name
 }
 
 output "ecs_instance_role_name" {
-  value = aws_iam_role.ecs_instance.name
+  value = data.aws_iam_role.lab_role.name
 }
