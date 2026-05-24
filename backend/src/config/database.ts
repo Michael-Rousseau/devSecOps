@@ -9,6 +9,7 @@ export const pool = new pg.Pool({
     password: config.pg.password,
     max: 10,
     idleTimeoutMillis: 30_000,
+    ssl: config.nodeEnv === 'production' ? { rejectUnauthorized: false } : false,
 });
 
 export async function initDatabase(): Promise<void> {
