@@ -7,9 +7,9 @@ output "monitoring_sg_id" {
 }
 
 output "grafana_url" {
-  value = "http://${aws_instance.monitoring.public_ip}:3000"
+  value = "http://${aws_instance.monitoring.public_ip}:${var.grafana_port}"
 }
 
 output "prometheus_url" {
-  value = "http://${aws_instance.monitoring.public_ip}:9090"
+  value = "http://${aws_instance.monitoring.public_ip}:${var.prometheus_port}"
 }

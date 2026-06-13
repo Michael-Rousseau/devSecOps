@@ -4,7 +4,7 @@ data "aws_ami" "amazon_linux" {
 
   filter {
     name   = "name"
-    values = ["al2023-ami-*-x86_64"]
+    values = [var.ami_name_filter]
   }
 
   filter {
@@ -19,16 +19,16 @@ resource "aws_security_group" "monitoring" {
 
   # Grafana
   ingress {
-    from_port   = 3000
-    to_port     = 3000
+    from_port   = var.grafana_port
+    to_port     = var.grafana_port
     protocol    = "tcp"
     cidr_blocks = [var.my_ip_cidr]
   }
 
   # Prometheus
   ingress {
-    from_port   = 9090
-    to_port     = 9090
+    from_port   = var.prometheus_port
+    to_port     = var.prometheus_port
     protocol    = "tcp"
     cidr_blocks = [var.my_ip_cidr]
   }
@@ -53,7 +53,7 @@ resource "aws_security_group" "monitoring" {
 
 resource "aws_instance" "monitoring" {
   ami                         = data.aws_ami.amazon_linux.id
-  instance_type               = "t2.small"
+  instance_type               = var.instance_type
   subnet_id                   = var.public_subnet_id
   key_name                    = var.ssh_key_name
   vpc_security_group_ids      = [aws_security_group.monitoring.id]

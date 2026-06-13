@@ -1,11 +1,22 @@
 ---
+# Required extra-vars (no insecure defaults):
+#   ansible-playbook playbooks/monitoring.yml \
+#     -e "alb_dns_name=$(terraform -chdir=../terraform/environments/dev output -raw alb_dns_name)" \
+#     -e "grafana_admin_password=$GRAFANA_ADMIN_PASSWORD"
 - name: Configure monitoring instance (Prometheus + Grafana)
   hosts: monitoring
   become: true
   vars:
     aws_region: us-east-1
-    alb_dns_name: deus-dashboard-alb-1071352964.us-east-1.elb.amazonaws.com
-    grafana_admin_password: admin
+  pre_tasks:
+    - name: Require deployment parameters
+      ansible.builtin.assert:
+        that:
+          - alb_dns_name is defined
+          - alb_dns_name | length > 0
+          - grafana_admin_password is defined
+          - grafana_admin_password | length > 0
+        fail_msg: "Pass -e alb_dns_name=... and -e grafana_admin_password=... (see header comment)"
   roles:
     - docker
     - node-exporter

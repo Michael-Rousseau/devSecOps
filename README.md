@@ -2,6 +2,48 @@
 
 This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.3.10.
 
+## Infrastructure (AWS Academy Learner Lab)
+
+Full architecture is documented in `docs/rapport`. Quick operational reference below.
+
+### Variable injection
+
+Terraform modules (`terraform/modules/*`) are environment-agnostic: every environment-specific value is a variable. The dev environment (`terraform/environments/dev`) injects everything:
+
+- Non-secret values: `terraform/environments/dev/terraform.tfvars`
+- Secrets: environment variables — `export TF_VAR_db_password=...` and `export TF_VAR_nasa_api_key=...` (CI uses GitHub Secrets and passes them with `-var`)
+
+### Per-session checklist (Learner Lab credentials expire every ~4h)
+
+1. Refresh AWS credentials: `scripts/update-aws-keys.sh` (and update GitHub Secrets for CI)
+2. `terraform -chdir=terraform/environments/dev apply`
+3. Update `ansible/inventory/hosts.ini` with current IPs (`terraform output bastion_public_ip`, ECS/monitoring private IPs)
+4. Configure hosts:
+
+```bash
+cd ansible
+ansible-playbook playbooks/site.yml
+ansible-playbook playbooks/monitoring.yml \
+  -e "alb_dns_name=$(terraform -chdir=../terraform/environments/dev output -raw alb_dns_name)" \
+  -e "grafana_admin_password=$GRAFANA_ADMIN_PASSWORD"
+```
+
+### Replacement risks (terraform apply destroys/recreates the resource)
+
+| Value | Resource replaced if changed |
+|---|---|
+| `db_name` | RDS instance (data loss) |
+| `public_subnet_cidrs` / `private_subnet_cidrs` | Subnets and everything inside |
+| DynamoDB `hash_key` | Cache table |
+| AMI data sources (`most_recent = true`) | Bastion / monitoring instance whenever Amazon publishes a new AL2023 AMI — stateless, re-run ansible afterwards |
+
+### Learner Lab constraints (intentional deviations)
+
+- Single `LabRole` IAM role everywhere (custom IAM forbidden)
+- S3 public-read website hosting instead of CloudFront + OAC (CloudFront/ACM unavailable)
+- HTTP-only ALB (no ACM certificate)
+- `my_ip_cidr = 0.0.0.0/0` for bastion/Grafana (client IPs rotate); restrict to `<ip>/32` outside the lab
+
 ## Development server
 
 To start a local development server, run:

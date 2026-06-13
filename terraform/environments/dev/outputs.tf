@@ -1,9 +1,9 @@
 output "frontend_url" {
-  value = module.s3_cloudfront.website_endpoint
+  value = module.s3_frontend.website_endpoint
 }
 
 output "s3_bucket_name" {
-  value = module.s3_cloudfront.s3_bucket_name
+  value = module.s3_frontend.s3_bucket_name
 }
 
 output "ecr_repository_url" {

@@ -1,0 +1,62 @@
+graph TB
+    subgraph Internet
+        Users["Utilisateurs"]
+    end
+
+    subgraph VPC["VPC 10.0.0.0/16"]
+        subgraph Public_A["Public Subnet A (10.0.1.0/24 - us-east-1a)"]
+            ALB["ALB<br/>(HTTP :80)"]
+            Bastion["Bastion<br/>t2.micro"]
+            Monitoring["Monitoring<br/>t2.small<br/>Prometheus :9090<br/>Grafana :3000"]
+        end
+
+        subgraph Public_B["Public Subnet B (10.0.2.0/24 - us-east-1b)"]
+            ALB_B["ALB (2e AZ)"]
+        end
+
+        subgraph Private_A["Private Subnet A (10.0.10.0/24 - us-east-1a)"]
+            ECS["ECS EC2<br/>t2.small<br/>Backend Express"]
+            RDS["RDS PostgreSQL<br/>db.t3.micro"]
+        end
+
+        subgraph Private_B["Private Subnet B (10.0.11.0/24 - us-east-1b)"]
+            RDS_Standby["RDS Subnet<br/>(DB Subnet Group)"]
+        end
+
+        NAT["NAT Gateway"]
+        IGW["Internet Gateway"]
+    end
+
+    subgraph AWS_Services["Services AWS"]
+        S3["S3 Static Website<br/>Frontend Angular"]
+        ECR["ECR<br/>Images Docker"]
+        SSM["SSM Parameter Store<br/>Secrets (KMS)"]
+        DynamoDB["DynamoDB<br/>Cache API NASA"]
+        CloudWatch["CloudWatch<br/>Logs + Alarmes + Dashboard"]
+        SNS["SNS<br/>Alertes email"]
+    end
+
+    Users -->|"HTTPS (direct)"| S3
+    Users -->|"HTTP :80"| ALB
+    ALB -->|"ports dynamiques"| ECS
+    ALB_B -.->|"même ALB, 2e AZ"| ALB
+    ECS -->|"5432 (sg-ecs)"| RDS
+    ECS -->|"lecture secrets"| SSM
+    ECS -->|"cache R/W"| DynamoDB
+    ECS -->|"awslogs"| CloudWatch
+    ECS -->|"pull images"| ECR
+    ECS -->|"/api/metrics"| Monitoring
+    Bastion -->|"SSH :22"| ECS
+    Bastion -->|"SSH :22"| Monitoring
+    Bastion -->|"5432"| RDS
+    CloudWatch -->|"alarmes"| SNS
+    ECS -->|"NAT"| NAT
+    NAT --> IGW
+    IGW --> Internet
+
+    classDef public fill:#e8f5e9,stroke:#4caf50
+    classDef private fill:#fff3e0,stroke:#ff9800
+    classDef aws fill:#e3f2fd,stroke:#2196f3
+    class Public_A,Public_B public
+    class Private_A,Private_B private
+    class S3,ECR,SSM,DynamoDB,CloudWatch,SNS aws

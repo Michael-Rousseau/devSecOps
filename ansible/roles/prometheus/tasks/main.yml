@@ -38,14 +38,22 @@
     mode: "0644"
   register: prom_config
 
+# Shell-based container management (instead of community.docker) avoids
+# installing the Python docker SDK on lab hosts.
 - name: Check if Prometheus is running
   ansible.builtin.shell: docker ps -q -f name=prometheus
   register: prom_running
   changed_when: false
 
-- name: Stop Prometheus if config changed
+- name: Get running Prometheus image
+  ansible.builtin.shell: docker inspect -f '{% raw %}{{.Config.Image}}{% endraw %}' prometheus
+  register: prom_image
+  failed_when: false
+  changed_when: false
+
+- name: Remove Prometheus if config or image changed
   ansible.builtin.shell: docker rm -f prometheus
-  when: prom_config.changed and prom_running.stdout != ""
+  when: prom_running.stdout != "" and (prom_config.changed or prom_image.stdout != prometheus_image)
 
 - name: Run Prometheus container
   ansible.builtin.shell: |
@@ -53,6 +61,6 @@
       --network host \
       -v /opt/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml \
       -v /opt/monitoring/prometheus/data:/prometheus \
-      prom/prometheus:latest \
-      --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.retention.time=7d
-  when: prom_config.changed or prom_running.stdout == ""
+      {{ prometheus_image }} \
+      --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.retention.time={{ prometheus_retention }}
+  when: prom_config.changed or prom_running.stdout == "" or prom_image.stdout != prometheus_image

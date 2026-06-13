@@ -1,15 +1,15 @@
 resource "aws_dynamodb_table" "cache" {
   name         = "${var.project_name}-cache-${var.environment}"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "cacheKey"
+  billing_mode = var.billing_mode
+  hash_key     = var.hash_key
 
   attribute {
-    name = "cacheKey"
+    name = var.hash_key
     type = "S"
   }
 
   ttl {
-    attribute_name = "ttl"
+    attribute_name = var.ttl_attribute
     enabled        = true
   }
 

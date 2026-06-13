@@ -1,5 +1,5 @@
 data "aws_ssm_parameter" "ecs_ami" {
-  name = "/aws/service/ecs/optimized-ami/amazon-linux-2023/recommended/image_id"
+  name = var.ecs_ami_ssm_parameter
 }
 
 resource "aws_ecs_cluster" "main" {
@@ -7,7 +7,7 @@ resource "aws_ecs_cluster" "main" {
 
   setting {
     name  = "containerInsights"
-    value = "enabled"
+    value = var.container_insights
   }
 
   tags = { Name = "${var.project_name}-cluster" }
@@ -18,16 +18,10 @@ resource "aws_security_group" "alb" {
   name_prefix = "${var.project_name}-alb-"
   vpc_id      = var.vpc_id
 
+  # HTTP only: HTTPS requires an ACM certificate, unavailable in AWS Academy Learner Lab
   ingress {
     from_port   = 80
     to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port   = 443
-    to_port     = 443
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -74,7 +68,7 @@ resource "aws_security_group" "ecs_instances" {
 resource "aws_launch_template" "ecs" {
   name_prefix   = "${var.project_name}-ecs-"
   image_id      = data.aws_ssm_parameter.ecs_ami.value
-  instance_type = "t2.small"
+  instance_type = var.instance_type
   key_name      = var.ssh_key_name
 
   iam_instance_profile {
@@ -102,9 +96,9 @@ resource "aws_launch_template" "ecs" {
 # Auto Scaling Group
 resource "aws_autoscaling_group" "ecs" {
   name_prefix         = "${var.project_name}-ecs-"
-  min_size            = 1
-  max_size            = 2
-  desired_capacity    = 1
+  min_size            = var.asg_min_size
+  max_size            = var.asg_max_size
+  desired_capacity    = var.asg_desired_capacity
   vpc_zone_identifier = var.private_subnet_ids
 
   launch_template {
@@ -132,13 +126,13 @@ resource "aws_lb" "main" {
 
 resource "aws_lb_target_group" "backend" {
   name        = "${var.project_name}-backend-tg"
-  port        = 3000
+  port        = var.container_port
   protocol    = "HTTP"
   vpc_id      = var.vpc_id
   target_type = "instance"
 
   health_check {
-    path                = "/api/health"
+    path                = var.health_check_path
     interval            = 30
     timeout             = 5
     healthy_threshold   = 2
@@ -167,31 +161,31 @@ resource "aws_ecs_task_definition" "backend" {
   network_mode             = "bridge"
   execution_role_arn       = var.ecs_execution_role_arn
   task_role_arn            = var.ecs_task_role_arn
-  cpu                      = 256
-  memory                   = 384
+  cpu                      = var.task_cpu
+  memory                   = var.task_memory
 
   container_definitions = jsonencode([
     {
       name      = "backend"
       image     = "${var.ecr_repository_url}:${var.image_tag}"
-      cpu       = 256
-      memory    = 384
+      cpu       = var.task_cpu
+      memory    = var.task_memory
       essential = true
 
       portMappings = [
         {
-          containerPort = 3000
+          containerPort = var.container_port
           hostPort      = 0
           protocol      = "tcp"
         }
       ]
 
       environment = [
-        { name = "NODE_ENV", value = "production" },
-        { name = "PORT", value = "3000" },
-        { name = "PG_DATABASE", value = "deus_dashboard" },
-        { name = "PG_USER", value = "deus_admin" },
-        { name = "PG_PORT", value = "5432" },
+        { name = "NODE_ENV", value = var.node_env },
+        { name = "PORT", value = tostring(var.container_port) },
+        { name = "PG_DATABASE", value = var.db_name },
+        { name = "PG_USER", value = var.db_username },
+        { name = "PG_PORT", value = tostring(var.db_port) },
         { name = "AWS_REGION", value = var.aws_region },
       ]
 
@@ -205,7 +199,7 @@ resource "aws_ecs_task_definition" "backend" {
       logConfiguration = {
         logDriver = "awslogs"
         options = {
-          "awslogs-group"         = "/ecs/${var.project_name}-backend"
+          "awslogs-group"         = var.log_group_name
           "awslogs-region"        = var.aws_region
           "awslogs-stream-prefix" = "ecs"
         }
@@ -221,16 +215,18 @@ resource "aws_ecs_service" "backend" {
   name            = "${var.project_name}-backend"
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.backend.arn
-  desired_count   = 1
+  desired_count   = var.service_desired_count
   launch_type     = "EC2"
 
-  deployment_minimum_healthy_percent = 0
-  deployment_maximum_percent         = 200
+  # Rolling deploy without downtime: the new task starts (dynamic host port,
+  # so it can share the instance) before the old one is drained.
+  deployment_minimum_healthy_percent = var.deployment_minimum_healthy_percent
+  deployment_maximum_percent         = var.deployment_maximum_percent
 
   load_balancer {
     target_group_arn = aws_lb_target_group.backend.arn
     container_name   = "backend"
-    container_port   = 3000
+    container_port   = var.container_port
   }
 
   ordered_placement_strategy {

@@ -4,11 +4,21 @@
   register: ne_running
   changed_when: false
 
+- name: Get running Node Exporter image
+  ansible.builtin.shell: docker inspect -f '{% raw %}{{.Config.Image}}{% endraw %}' node-exporter
+  register: ne_image
+  failed_when: false
+  changed_when: false
+
+- name: Remove Node Exporter if image changed
+  ansible.builtin.shell: docker rm -f node-exporter
+  when: ne_running.stdout != "" and ne_image.stdout != node_exporter_image
+
 - name: Run Node Exporter container
   ansible.builtin.shell: |
     docker run -d --name node-exporter --restart unless-stopped \
       -p 9100:9100 \
       -v /proc:/host/proc:ro -v /sys:/host/sys:ro -v /:/rootfs:ro \
-      prom/node-exporter:latest \
+      {{ node_exporter_image }} \
       --path.procfs=/host/proc --path.sysfs=/host/sys --path.rootfs=/rootfs
-  when: ne_running.stdout == ""
+  when: ne_running.stdout == "" or ne_image.stdout != node_exporter_image

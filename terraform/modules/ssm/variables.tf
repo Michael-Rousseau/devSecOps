@@ -31,3 +31,9 @@ variable "db_name" {
 variable "dynamodb_table_name" {
   type = string
 }
+
+variable "db_port" {
+  description = "Database port used in the connection string parameter"
+  type        = number
+  default     = 5432
+}

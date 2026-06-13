@@ -63,9 +63,15 @@
   register: grafana_running
   changed_when: false
 
-- name: Stop Grafana if config changed
+- name: Get running Grafana image
+  ansible.builtin.shell: docker inspect -f '{% raw %}{{.Config.Image}}{% endraw %}' grafana
+  register: grafana_image_current
+  failed_when: false
+  changed_when: false
+
+- name: Remove Grafana if config or image changed
   ansible.builtin.shell: docker rm -f grafana
-  when: grafana_config.changed and grafana_running.stdout != ""
+  when: grafana_running.stdout != "" and (grafana_config.changed or grafana_image_current.stdout != grafana_image)
 
 - name: Run Grafana container
   ansible.builtin.shell: |
@@ -77,5 +83,5 @@
       -v /opt/monitoring/grafana/provisioning:/etc/grafana/provisioning \
       -v /opt/monitoring/grafana/dashboards:/var/lib/grafana/dashboards \
       -v /opt/monitoring/grafana/data:/var/lib/grafana \
-      grafana/grafana:latest
-  when: grafana_config.changed or grafana_running.stdout == ""
+      {{ grafana_image }}
+  when: grafana_config.changed or grafana_running.stdout == "" or grafana_image_current.stdout != grafana_image

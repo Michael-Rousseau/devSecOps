@@ -8,7 +8,7 @@ resource "aws_ssm_parameter" "nasa_api_key" {
 resource "aws_ssm_parameter" "database_url" {
   name  = "/${var.project_name}/${var.environment}/database-url"
   type  = "SecureString"
-  value = "postgresql://${var.db_username}:${var.db_password}@${var.rds_address}:5432/${var.db_name}"
+  value = "postgresql://${var.db_username}:${var.db_password}@${var.rds_address}:${var.db_port}/${var.db_name}"
   tags  = { Name = "${var.project_name}-database-url" }
 }
 

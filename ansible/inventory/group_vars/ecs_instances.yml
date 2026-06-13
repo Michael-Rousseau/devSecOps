@@ -1,3 +1,5 @@
+# Values must match terraform outputs (ecs_cluster_name) and the backend log group.
+# Override ad hoc with: ansible-playbook ... -e "ecs_cluster_name=..."
 ecs_cluster_name: deus-dashboard-dev
 aws_region: us-east-1
 cloudwatch_log_group: /ecs/deus-dashboard-backend

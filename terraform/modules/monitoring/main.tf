@@ -1,6 +1,6 @@
 resource "aws_cloudwatch_log_group" "ecs_backend" {
-  name              = "/ecs/${var.project_name}-backend"
-  retention_in_days = 14
+  name              = var.log_group_name
+  retention_in_days = var.log_retention_days
   tags              = { Name = "${var.project_name}-backend-logs" }
 }
 
@@ -21,9 +21,9 @@ resource "aws_cloudwatch_metric_alarm" "ecs_cpu_high" {
   evaluation_periods  = 2
   metric_name         = "CPUUtilization"
   namespace           = "AWS/ECS"
-  period              = 300
+  period              = var.alarm_period
   statistic           = "Average"
-  threshold           = 80
+  threshold           = var.ecs_cpu_threshold
 
   dimensions = {
     ClusterName = var.ecs_cluster_name
@@ -40,9 +40,9 @@ resource "aws_cloudwatch_metric_alarm" "ecs_memory_high" {
   evaluation_periods  = 2
   metric_name         = "MemoryUtilization"
   namespace           = "AWS/ECS"
-  period              = 300
+  period              = var.alarm_period
   statistic           = "Average"
-  threshold           = 80
+  threshold           = var.ecs_memory_threshold
 
   dimensions = {
     ClusterName = var.ecs_cluster_name
@@ -59,9 +59,9 @@ resource "aws_cloudwatch_metric_alarm" "alb_5xx" {
   evaluation_periods  = 1
   metric_name         = "HTTPCode_Target_5XX_Count"
   namespace           = "AWS/ApplicationELB"
-  period              = 300
+  period              = var.alarm_period
   statistic           = "Sum"
-  threshold           = 10
+  threshold           = var.alb_5xx_threshold
   treat_missing_data  = "notBreaching"
 
   dimensions = {
@@ -78,9 +78,9 @@ resource "aws_cloudwatch_metric_alarm" "rds_cpu" {
   evaluation_periods  = 2
   metric_name         = "CPUUtilization"
   namespace           = "AWS/RDS"
-  period              = 300
+  period              = var.alarm_period
   statistic           = "Average"
-  threshold           = 80
+  threshold           = var.rds_cpu_threshold
 
   dimensions = {
     DBInstanceIdentifier = var.rds_instance_id
@@ -96,9 +96,9 @@ resource "aws_cloudwatch_metric_alarm" "rds_storage" {
   evaluation_periods  = 1
   metric_name         = "FreeStorageSpace"
   namespace           = "AWS/RDS"
-  period              = 300
+  period              = var.alarm_period
   statistic           = "Average"
-  threshold           = 2000000000
+  threshold           = var.rds_free_storage_threshold_bytes
 
   dimensions = {
     DBInstanceIdentifier = var.rds_instance_id
@@ -125,7 +125,7 @@ resource "aws_cloudwatch_dashboard" "main" {
             ["AWS/ECS", "CPUUtilization", "ClusterName", var.ecs_cluster_name, "ServiceName", var.ecs_service_name],
             ["AWS/ECS", "MemoryUtilization", "ClusterName", var.ecs_cluster_name, "ServiceName", var.ecs_service_name]
           ]
-          period = 300
+          period = var.alarm_period
           region = var.aws_region
         }
       },
@@ -141,7 +141,7 @@ resource "aws_cloudwatch_dashboard" "main" {
             ["AWS/ApplicationELB", "RequestCount", "LoadBalancer", var.alb_arn_suffix],
             ["AWS/ApplicationELB", "TargetResponseTime", "LoadBalancer", var.alb_arn_suffix]
           ]
-          period = 300
+          period = var.alarm_period
           region = var.aws_region
         }
       },
@@ -157,7 +157,7 @@ resource "aws_cloudwatch_dashboard" "main" {
             ["AWS/ApplicationELB", "HTTPCode_Target_4XX_Count", "LoadBalancer", var.alb_arn_suffix],
             ["AWS/ApplicationELB", "HTTPCode_Target_5XX_Count", "LoadBalancer", var.alb_arn_suffix]
           ]
-          period = 300
+          period = var.alarm_period
           region = var.aws_region
         }
       },
@@ -174,7 +174,7 @@ resource "aws_cloudwatch_dashboard" "main" {
             ["AWS/RDS", "FreeableMemory", "DBInstanceIdentifier", var.rds_instance_id],
             ["AWS/RDS", "DatabaseConnections", "DBInstanceIdentifier", var.rds_instance_id]
           ]
-          period = 300
+          period = var.alarm_period
           region = var.aws_region
         }
       }

@@ -4,7 +4,7 @@ data "aws_ami" "amazon_linux" {
 
   filter {
     name   = "name"
-    values = ["al2023-ami-*-x86_64"]
+    values = [var.ami_name_filter]
   }
 
   filter {
@@ -36,7 +36,7 @@ resource "aws_security_group" "bastion" {
 
 resource "aws_instance" "bastion" {
   ami                         = data.aws_ami.amazon_linux.id
-  instance_type               = "t2.micro"
+  instance_type               = var.instance_type
   subnet_id                   = var.public_subnet_id
   key_name                    = var.ssh_key_name
   vpc_security_group_ids      = [aws_security_group.bastion.id]

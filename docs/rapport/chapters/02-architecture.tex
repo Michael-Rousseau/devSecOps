@@ -6,12 +6,11 @@
 L'architecture suit un modele cloud-native avec separation entre le frontend statique
 et le backend API.
 
-% TODO: Remplacer par une capture d'ecran du diagramme d'architecture
-% \begin{figure}[H]
-%     \centering
-%     \includegraphics[width=\textwidth]{architecture-diagram.png}
-%     \caption{Diagramme d'architecture globale}
-% \end{figure}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{architecture-diagram.png}
+    \caption{Diagramme d'architecture globale}
+\end{figure}
 
 \begin{lstlisting}[language={},caption={Architecture simplifiee}]
    Utilisateurs --> S3 Static Website Hosting (Angular)
@@ -85,10 +84,36 @@ via le port mapping dynamique.
         Single NAT Gateway & Economie (\~{}32\$/mois) & HA NAT \\
         S3 Website vs CloudFront & CloudFront OAC bloque par Learner Lab & CloudFront \\
         Single-AZ RDS & Projet scolaire, economie & Multi-AZ \\
+        Rolling deploy 100/200 & Zero-downtime : la nouvelle tache demarre avant l'arret de l'ancienne & Recreate \\
         \bottomrule
     \end{tabularx}
     \caption{Decisions d'architecture et justifications}
 \end{table}
+
+\section{Resilience et scalabilite}
+
+\begin{itemize}
+    \item \textbf{Multi-AZ} : sous-reseaux publics et prives repartis sur
+        \texttt{us-east-1a} et \texttt{us-east-1b} ; l'ALB est deploye sur les
+        deux AZ et l'ASG peut placer des instances dans chacune
+        (strategie de placement ECS \texttt{spread} sur les AZ).
+    \item \textbf{Auto Scaling Group} : 1 a 2 instances ECS. En cas de panne
+        d'instance, l'ASG la remplace automatiquement et l'agent ECS
+        re-enregistre les taches.
+    \item \textbf{Deploiements sans interruption} : le service ECS est configure
+        avec \texttt{deployment\_minimum\_healthy\_percent = 100} et
+        \texttt{deployment\_maximum\_percent = 200}. Grace au port mapping
+        dynamique (mode bridge), la nouvelle tache demarre sur la meme instance,
+        passe le health check ALB, puis l'ancienne est drainee.
+    \item \textbf{Auto-reparation applicative} : health checks a deux niveaux ---
+        ALB (\texttt{/api/health}) qui retire les cibles defaillantes, et
+        \texttt{HEALTHCHECK} Docker dans l'image backend.
+    \item \textbf{Compromis assumes} : NAT Gateway unique et RDS single-AZ
+        (cf. tableau des decisions) --- ces points de defaillance sont acceptes
+        pour limiter les couts du Learner Lab ; le passage en production
+        consisterait a basculer \texttt{rds\_multi\_az = true} et a ajouter un
+        second NAT, sans modification des modules.
+\end{itemize}
 
 \section{Reseau --- VPC}
 

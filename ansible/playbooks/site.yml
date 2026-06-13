@@ -1,10 +1,9 @@
 ---
+# Host variables come from inventory/group_vars/ecs_instances.yml
+# (must match terraform outputs; override ad hoc with -e).
 - name: Configure ECS EC2 instances
   hosts: ecs_instances
   become: true
-  vars:
-    ecs_cluster_name: deus-dashboard-dev
-    aws_region: us-east-1
   roles:
     - security
     - docker

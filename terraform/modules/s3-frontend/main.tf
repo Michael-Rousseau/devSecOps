@@ -1,3 +1,5 @@
+# Public-read website bucket is the intentional Learner Lab substitute for
+# CloudFront + OAC (CloudFront/ACM unavailable in AWS Academy).
 resource "aws_s3_bucket" "frontend" {
   bucket = "${var.project_name}-frontend-${var.environment}"
   tags   = { Name = "${var.project_name}-frontend" }

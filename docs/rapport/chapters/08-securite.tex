@@ -76,14 +76,33 @@ politiques restrictives pour chaque composant.
         \toprule
         \textbf{Security Group} & \textbf{Regles entrantes} & \textbf{Cible} \\
         \midrule
-        sg-alb & 80/443 depuis 0.0.0.0/0 & ALB \\
+        sg-alb & 80 depuis 0.0.0.0/0 & ALB \\
         sg-ecs & 32768-65535 depuis sg-alb, 22 depuis sg-bastion & Instances ECS \\
-        sg-rds & 5432 depuis sous-reseaux prives + sg-bastion & PostgreSQL \\
+        sg-rds & 5432 depuis sg-ecs et sg-bastion & PostgreSQL \\
         sg-bastion & 22 depuis IP autorisee & Bastion \\
+        sg-monitoring & 3000/9090 depuis IP autorisee, 22 depuis sg-bastion & Prometheus/Grafana \\
         \bottomrule
     \end{tabularx}
     \caption{Security Groups et regles}
 \end{table}
+
+\textbf{Moindre privilege par references de Security Groups~:} chaque flux
+interne est autorise par \emph{reference de Security Group} et non par plage
+CIDR. Initialement, la base RDS acceptait le port 5432 depuis l'ensemble des
+sous-reseaux prives~; la regle a ete restreinte aux seuls
+\texttt{sg-ecs} et \texttt{sg-bastion}. Ainsi, meme une ressource compromise
+placee dans un sous-reseau prive ne peut pas atteindre la base si elle ne
+porte pas le bon Security Group. De meme, le port 443 de l'ALB, sans
+listener HTTPS associe (certificat ACM indisponible en Learner Lab),
+a ete supprime~: aucune regle ne reste ouverte sans service derriere.
+
+Les flux autorises se resument a~:
+\begin{lstlisting}[language={},caption={Flux reseau (moindre privilege)}]
+Internet --80--> sg-alb --ports dynamiques--> sg-ecs --5432--> sg-rds
+Admin    --22--> sg-bastion --22--> sg-ecs / sg-monitoring
+                 sg-bastion --5432--> sg-rds   (administration DB)
+Admin    --3000/9090--> sg-monitoring          (UI Grafana/Prometheus)
+\end{lstlisting}
 
 Seul l'ALB est expose sur Internet. Les instances ECS et la base de donnees
 sont dans des sous-reseaux prives, accessibles uniquement via l'ALB

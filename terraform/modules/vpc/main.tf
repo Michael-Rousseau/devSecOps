@@ -13,31 +13,31 @@ resource "aws_internet_gateway" "main" {
 
 resource "aws_subnet" "public_a" {
   vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.1.0/24"
-  availability_zone       = "${var.aws_region}a"
+  cidr_block              = var.public_subnet_cidrs[0]
+  availability_zone       = "${var.aws_region}${var.az_suffixes[0]}"
   map_public_ip_on_launch = true
   tags                    = { Name = "${var.project_name}-public-a" }
 }
 
 resource "aws_subnet" "public_b" {
   vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.2.0/24"
-  availability_zone       = "${var.aws_region}b"
+  cidr_block              = var.public_subnet_cidrs[1]
+  availability_zone       = "${var.aws_region}${var.az_suffixes[1]}"
   map_public_ip_on_launch = true
   tags                    = { Name = "${var.project_name}-public-b" }
 }
 
 resource "aws_subnet" "private_a" {
   vpc_id            = aws_vpc.main.id
-  cidr_block        = "10.0.10.0/24"
-  availability_zone = "${var.aws_region}a"
+  cidr_block        = var.private_subnet_cidrs[0]
+  availability_zone = "${var.aws_region}${var.az_suffixes[0]}"
   tags              = { Name = "${var.project_name}-private-a" }
 }
 
 resource "aws_subnet" "private_b" {
   vpc_id            = aws_vpc.main.id
-  cidr_block        = "10.0.11.0/24"
-  availability_zone = "${var.aws_region}b"
+  cidr_block        = var.private_subnet_cidrs[1]
+  availability_zone = "${var.aws_region}${var.az_suffixes[1]}"
   tags              = { Name = "${var.project_name}-private-b" }
 }
 

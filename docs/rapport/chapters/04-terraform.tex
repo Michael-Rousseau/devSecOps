@@ -37,15 +37,16 @@ Ce mecanisme garantit~:
         \textbf{Module} & \textbf{Ressources} \\
         \midrule
         vpc & VPC, sous-reseaux, IGW, NAT Gateway, tables de routage \\
-        s3 & Bucket S3, hebergement statique, ACLs publiques \\
+        s3-frontend & Bucket S3, hebergement statique, ACLs publiques \\
         ecr & Repository ECR, politique de cycle de vie \\
         ecs & Cluster ECS, Launch Template, ASG, ALB, Task Definition, Service \\
         rds & Instance PostgreSQL, sous-groupe DB, Security Group \\
         dynamodb & Table de cache avec TTL \\
-        bastion & Instance EC2 t2.micro, Security Group SSH \\
+        bastion & Instance EC2, Security Group SSH \\
         iam & Utilisation de LabRole et LabInstanceProfile pre-existants \\
         ssm & Parametres SecureString (cle NASA, credentials DB) \\
         monitoring & Log Groups, Alarmes CloudWatch, SNS, Dashboard \\
+        monitoring-stack & Instance EC2 dediee Prometheus/Grafana, Security Group \\
         \bottomrule
     \end{tabularx}
     \caption{Modules Terraform et leurs ressources}
@@ -64,6 +65,29 @@ VPC (base)
   |-- ECS (apres tout)
   |-- Monitoring (apres ECS, RDS)
 \end{lstlisting}
+
+\section{Modules generiques et injection de variables}
+
+Les modules de \texttt{terraform/modules} sont \emph{agnostiques de
+l'environnement}~: aucune valeur specifique (type d'instance, CIDR, version
+de moteur, seuils d'alarme, adresse e-mail\ldots) n'y est codee en dur.
+Chaque parametre est une variable documentee, avec une valeur par defaut
+generique lorsque c'est sans risque, ou \emph{sans} valeur par defaut
+lorsqu'une injection explicite est preferable (ex. \texttt{db\_name},
+dont le changement detruirait l'instance RDS).
+
+La couche environnement (\texttt{terraform/environments/dev}) compose les
+modules et injecte \emph{toutes} les valeurs~:
+\begin{itemize}
+    \item valeurs non sensibles dans \texttt{terraform.tfvars} (versionne)~;
+    \item secrets via variables d'environnement \texttt{TF\_VAR\_db\_password}
+        et \texttt{TF\_VAR\_nasa\_api\_key} (jamais commites).
+\end{itemize}
+
+Cette separation permettrait de creer un environnement \texttt{prod}
+en dupliquant uniquement la couche environnement (autre \texttt{tfvars}~:
+\texttt{rds\_multi\_az = true}, instances plus grandes, CIDR distincts),
+sans toucher aux modules.
 
 \section{Variables et secrets}
 
@@ -139,3 +163,9 @@ resource "aws_ecs_task_definition" "backend" {
 Cette approche evite les erreurs \texttt{AccessDenied} tout en conservant
 les permissions necessaires (le \texttt{LabRole} dispose de permissions
 suffisantes pour ECS, ECR, SSM, CloudWatch et DynamoDB).
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{terraform_apply.png}
+    \caption{Execution de \texttt{terraform apply} sur l'environnement dev}
+\end{figure}

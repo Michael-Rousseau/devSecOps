@@ -10,25 +10,18 @@ Il intervient apres le provisionnement Terraform pour installer et configurer~:
     \item Le durcissement de securite des instances
 \end{itemize}
 
-\section{Inventaire dynamique}
+\section{Inventaire}
 
-L'inventaire utilise le plugin \texttt{amazon.aws.aws\_ec2} pour decouvrir
-automatiquement les instances~:
+L'inventaire est statique (\texttt{inventory/hosts.ini}) et regroupe les
+hotes en trois groupes~: \texttt{bastion}, \texttt{ecs\_instances} et
+\texttt{monitoring}. Les adresses IP changent a chaque session Learner Lab
+(les instances sont recreees ou redemarrees)~; l'inventaire est donc mis a
+jour a partir des outputs Terraform (\texttt{bastion\_public\_ip},
+IP privees des instances ECS et monitoring).
 
-\begin{lstlisting}[language=bash,caption={Inventaire dynamique AWS}]
-plugin: amazon.aws.aws_ec2
-regions:
-  - us-east-1
-filters:
-  tag:Project: deus-dashboard
-  instance-state-name: running
-keyed_groups:
-  - key: tags.Role
-    prefix: role
-\end{lstlisting}
-
-Les instances sont groupees par leur tag \texttt{Role}, ce qui permet
-de cibler \texttt{role\_ecs\_instance} dans les playbooks.
+Les variables communes aux instances ECS (nom du cluster, region, log group)
+sont centralisees dans \texttt{inventory/group\_vars/ecs\_instances.yml}
+et doivent rester coherentes avec les outputs Terraform.
 
 \section{Roles}
 
@@ -59,6 +52,30 @@ Installation de l'agent CloudWatch unifie avec collecte~:
     \item Logs de l'agent ECS (\texttt{/var/log/ecs/ecs-agent.log})
 \end{itemize}
 
+\section{Playbook monitoring}
+
+Un second playbook (\texttt{playbooks/monitoring.yml}) configure l'instance
+dediee Prometheus/Grafana. Deux principes de securite y sont appliques~:
+
+\begin{itemize}
+    \item \textbf{Pas de secret en dur}~: le mot de passe administrateur
+        Grafana et le DNS de l'ALB (cible de scrape Prometheus) sont exiges
+        en \emph{extra-vars} --- une assertion en \texttt{pre\_tasks} fait
+        echouer le playbook s'ils sont absents~:
+\begin{lstlisting}[language=bash,caption={Invocation du playbook monitoring}]
+ansible-playbook playbooks/monitoring.yml \
+  -e "alb_dns_name=$(terraform -chdir=../terraform/environments/dev \
+      output -raw alb_dns_name)" \
+  -e "grafana_admin_password=$GRAFANA_ADMIN_PASSWORD"
+\end{lstlisting}
+    \item \textbf{Versions epinglees}~: les images Docker
+        (\texttt{prom/prometheus:v2.53.4}, \texttt{grafana/grafana:11.6.1},
+        \texttt{prom/node-exporter:v1.8.2}) sont definies dans les
+        \texttt{defaults} de chaque role plutot qu'en \texttt{latest},
+        garantissant des deploiements reproductibles. Un changement de
+        version detecte a l'execution recree le conteneur concerne.
+\end{itemize}
+
 \section{Connexion via Bastion}
 
 Les instances ECS sont dans des sous-reseaux prives. Ansible s'y connecte
@@ -69,9 +86,8 @@ ansible_ssh_common_args: >
   -o ProxyJump=ec2-user@<bastion_ip>
 \end{lstlisting}
 
-% TODO: Ajouter capture d'ecran de l'execution Ansible
-% \begin{figure}[H]
-%     \centering
-%     \includegraphics[width=\textwidth]{ansible-run.png}
-%     \caption{Execution du playbook Ansible}
-% \end{figure}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{ansible_init.png}
+    \caption{Execution du playbook Ansible}
+\end{figure}
